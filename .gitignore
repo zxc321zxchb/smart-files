@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# 虚拟环境
+venv/
+env/
+ENV/
+drf_env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+temp/
+tmp/
+
+# 日志文件
+logs/
+*.log
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 静态文件
+staticfiles/
+static/
+
+# 媒体文件
+media/
+
+# 环境变量
+.env
+.env.local
+.env.production
+
+# 构建产物
+build/
+dist/
+*.exe
+file_save_system
+file_save_system.exe
+
+# GitHub Actions
+.github/workflows/build.yml.bak
