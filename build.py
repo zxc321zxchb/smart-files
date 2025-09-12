@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 PyInstaller自动化构建脚本
 用于Django项目的单文件打包
@@ -9,6 +10,12 @@ import sys
 import shutil
 import subprocess
 from pathlib import Path
+
+# 设置Windows控制台编码
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 
 class PyInstallerBuilder:
     def __init__(self):

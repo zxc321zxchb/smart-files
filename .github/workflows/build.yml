@@ -30,7 +30,7 @@ jobs:
         pip install -r requirements.txt
     
     - name: 构建Windows版本
-      run: python build.py
+      run: python build-ci.py
     
     - name: 测试可执行文件
       run: |
@@ -62,7 +62,7 @@ jobs:
         pip install -r requirements.txt
     
     - name: 构建macOS版本
-      run: python build.py
+      run: python build-ci.py
     
     - name: 测试可执行文件
       run: |
@@ -99,7 +99,7 @@ jobs:
         pip install -r requirements.txt
     
     - name: 构建Linux版本
-      run: python build.py
+      run: python build-ci.py
     
     - name: 测试可执行文件
       run: |
