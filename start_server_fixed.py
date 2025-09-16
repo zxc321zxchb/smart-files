@@ -13,6 +13,21 @@ from django.core.wsgi import get_wsgi_application
 
 def setup_django():
     """设置Django环境"""
+    # 处理PyInstaller打包后的路径问题
+    if getattr(sys, 'frozen', False):
+        # PyInstaller打包后的路径处理
+        base_path = sys._MEIPASS
+        # 将项目根目录添加到Python路径
+        if base_path not in sys.path:
+            sys.path.insert(0, base_path)
+        print(f"🔧 设置打包环境路径: {base_path}")
+    else:
+        # 开发环境路径处理
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        print(f"🔧 设置开发环境路径: {current_dir}")
+    
     # 设置Django设置模块
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'file_save_system.settings')
     

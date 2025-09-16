@@ -19,6 +19,9 @@ datas = [
     (str(BASE_DIR / 'static'), 'static'),
     (str(BASE_DIR / 'data'), 'data'),
     (str(BASE_DIR / 'requirements.txt'), '.'),
+    (str(BASE_DIR / 'manage.py'), '.'),
+    (str(BASE_DIR / 'model_manager.py'), '.'),
+    (str(BASE_DIR / 'ai_models'), 'ai_models'),
 ]
 
 # 过滤存在的数据文件
@@ -123,11 +126,16 @@ hiddenimports = [
     'uritemplate',
     
     # 项目应用
+    'file_save_system',
+    'file_save_system.settings',
+    'file_save_system.urls',
+    'file_save_system.wsgi',
     'file_save',
     'file_history',
     'performance',
     'ai_models',
     'ai_models.managers',
+    'model_manager',
     
     # 基础数据处理依赖（移除重型AI依赖）
     'numpy',
