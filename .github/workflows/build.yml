@@ -29,7 +29,7 @@ jobs:
       run: python build-ci.py
     
     - name: 上传Windows构建产物
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: file-save-system-windows
         path: dist/
@@ -54,7 +54,7 @@ jobs:
       run: python build-ci.py
     
     - name: 上传macOS构建产物
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: file-save-system-macos
         path: dist/
@@ -79,7 +79,7 @@ jobs:
       run: python build-ci.py
     
     - name: 上传Linux构建产物
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: file-save-system-linux
         path: dist/
@@ -91,7 +91,7 @@ jobs:
     if: github.event_name == 'release'
     steps:
     - name: 下载所有构建产物
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts/
     
