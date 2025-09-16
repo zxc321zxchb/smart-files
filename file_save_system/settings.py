@@ -143,8 +143,8 @@ if getattr(sys, 'frozen', False):
     LOGS_DIR = os.path.join(data_dir, 'logs')
     os.makedirs(LOGS_DIR, exist_ok=True)
     
-    # 更新日志配置
-    LOGGING['handlers']['file']['filename'] = os.path.join(LOGS_DIR, 'django.log')
+    # 注意：LOGGING配置将在后面定义，这里先保存日志目录路径
+    PACKAGED_LOGS_DIR = LOGS_DIR
     
     print(f"🔧 打包环境数据目录: {data_dir}")
     print(f"🗄️  数据库路径: {DATABASES['default']['NAME']}")
@@ -269,6 +269,14 @@ CACHES = {
 }
 
 # 日志配置
+# 确定日志文件路径
+if getattr(sys, 'frozen', False) and 'PACKAGED_LOGS_DIR' in globals():
+    # 打包环境
+    log_file_path = os.path.join(PACKAGED_LOGS_DIR, 'django.log')
+else:
+    # 开发环境
+    log_file_path = str(BASE_DIR / 'logs' / 'django.log')
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -276,7 +284,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+            'filename': log_file_path,
         },
         'console': {
             'level': 'INFO',
@@ -296,12 +304,8 @@ LOGGING = {
     },
 }
 
-# 处理PyInstaller打包后的日志路径
+# 处理PyInstaller打包后的其他设置
 if getattr(sys, 'frozen', False):
-    import tempfile
-    temp_dir = tempfile.gettempdir()
-    LOGGING['handlers']['file']['filename'] = os.path.join(temp_dir, 'django.log')
-    
     # 禁用Django的自动重载功能，避免与PyInstaller冲突
     USE_TZ = False
     DEBUG = False
