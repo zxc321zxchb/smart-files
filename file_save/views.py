@@ -7,7 +7,10 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
-from .models import FileSave, FilePath
+import base64
+import os
+import logging
+from .models import FileSave, FilePath, FileSaveHistory
 from .serializers import (
     FileSaveSerializer, 
     FileSaveCreateSerializer, 
@@ -16,6 +19,10 @@ from .serializers import (
     FilePathCreateSerializer,
     FilePathListSerializer
 )
+# 启用简单相似度服务（不依赖numpy，适合PyInstaller打包）
+from .similarity_service_simple import similarity_service
+
+logger = logging.getLogger(__name__)
 
 
 class FileSaveViewSet(viewsets.ModelViewSet):
@@ -60,6 +67,59 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(file_size__lte=int(max_size))
         
         return queryset
+    
+    def create(self, request, *args, **kwargs):
+        """重写create方法，添加相似度索引支持"""
+        try:
+            # 调用父类的create方法
+            response = super().create(request, *args, **kwargs)
+            
+            # 如果创建成功，将文件添加到相似度索引
+            if response.status_code == 201:
+                file_data = response.data
+                file_id = file_data.get('id')
+                
+                if file_id:
+                    # 获取文件内容
+                    try:
+                        file_obj = FileSave.objects.get(id=file_id)
+                        content_data = file_obj.content_data
+                        
+                        if content_data:
+                            # 解码base64内容
+                            import base64
+                            content = base64.b64decode(content_data).decode('utf-8')
+                            
+                            # 添加到相似度索引（如果服务可用）
+                            if similarity_service:
+                                similarity_service.add_document(
+                                    doc_id=str(file_id),
+                                    content=content,
+                                    metadata={
+                                        'filename': file_obj.filename,
+                                        'file_path': file_obj.file_path,
+                                        'created_at': file_obj.created_at.isoformat()
+                                    }
+                                )
+                            
+                            # 更新索引标记
+                            file_obj.is_indexed = True
+                            file_obj.save()
+                            
+                            logger.info(f"文件 {file_id} 已添加到相似度索引")
+                            
+                    except Exception as e:
+                        logger.warning(f"添加文件 {file_id} 到相似度索引失败: {e}")
+                        # 不影响主要的创建流程
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"创建文件失败: {e}")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -246,6 +306,342 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             'message': f'批量上传完成，共处理 {len(files)} 个文件',
             'results': results
         })
+    
+    @action(detail=False, methods=['post'])
+    def find_similar_files(self, request):
+        """查找相似文件"""
+        try:
+            content = request.data.get('content', '')
+            top_k = request.data.get('top_k', 5)
+            threshold = request.data.get('threshold', 0.1)  # 降低阈值提高匹配率
+            
+            if not content:
+                return Response({
+                    'success': False, 
+                    'message': '内容不能为空'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 查找相似文件（如果服务可用）
+            # similarity_service 已经在模块级别导入
+            if similarity_service:
+                logger.info(f"开始查找相似文件，内容长度: {len(content)}, 阈值: {threshold}")
+                similar_docs = similarity_service.find_similar_documents(
+                    query_content=content,
+                    top_k=top_k,
+                    threshold=threshold
+                )
+                logger.info(f"找到 {len(similar_docs)} 个相似文档")
+            else:
+                # 相似度服务不可用，返回空结果
+                logger.warning("相似度服务不可用")
+                similar_docs = []
+            
+            # 获取完整文件信息
+            results = []
+            for doc in similar_docs:
+                try:
+                    file_obj = FileSave.objects.get(id=doc['doc_id'])
+                    results.append({
+                        'id': file_obj.id,
+                        'filename': file_obj.filename,
+                        'file_path': file_obj.file_path,
+                        'file_size_mb': file_obj.file_size_mb,
+                        'created_at': file_obj.created_at.isoformat(),
+                        'similarity_score': doc['similarity_score'],
+                        'content_preview': doc['content_preview']
+                    })
+                except FileSave.DoesNotExist:
+                    logger.warning(f"文件 {doc['doc_id']} 不存在，跳过")
+                    continue
+            
+            return Response({
+                'success': True,
+                'data': results,
+                'message': f'找到 {len(results)} 个相似文件'
+            })
+            
+        except Exception as e:
+            logger.error(f"查找相似文件失败: {e}")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def similarity_debug(self, request):
+        """相似度服务调试接口"""
+        try:
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            # 获取索引统计
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            stats = similarity_service.get_index_stats()
+            
+            # 获取数据库中的文件数量
+            from .models import FileSave
+            total_files = FileSave.objects.count()
+            indexed_files = FileSave.objects.filter(is_indexed=True).count()
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'index_stats': stats,
+                    'database_stats': {
+                        'total_files': total_files,
+                        'indexed_files': indexed_files,
+                        'not_indexed_files': total_files - indexed_files
+                    }
+                }
+            })
+        except Exception as e:
+            logger.error(f"相似度调试失败: {e}")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def rebuild_similarity_index(self, request):
+        """重建相似度索引"""
+        try:
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            # 重建索引
+            success_count = similarity_service.rebuild_index_from_database()
+            
+            return Response({
+                'success': True,
+                'message': f'索引重建完成，成功处理 {success_count} 个文档',
+                'data': {
+                    'processed_documents': success_count
+                }
+            })
+        except Exception as e:
+            logger.error(f"重建索引失败: {e}")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def save_to_similar_file(self, request):
+        """保存内容到相似文件"""
+        try:
+            content = request.data.get('content', '')
+            target_file_id = request.data.get('target_file_id')
+            url = request.data.get('url', '')
+            title = request.data.get('title', '')
+            is_selection = request.data.get('is_selection', False)
+            
+            if not content:
+                return Response({
+                    'success': False,
+                    'message': '内容不能为空'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 如果指定了目标文件ID，则追加到该文件
+            if target_file_id and is_selection:
+                try:
+                    target_file = FileSave.objects.get(id=target_file_id)
+                    result = self.append_to_file(target_file, content, url, title)
+                    return Response(result)
+                except FileSave.DoesNotExist:
+                    return Response({
+                        'success': False,
+                        'message': '目标文件不存在'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # 否则创建新文件
+            result = self.create_new_file(content, url, title, is_selection)
+            
+            # 将新文件添加到相似度索引（如果服务可用）
+            if result['success']:
+                # similarity_service 已经在模块级别导入
+                if similarity_service:
+                    similarity_service.add_document(
+                    doc_id=str(result['file_id']),
+                    content=content,
+                    metadata={
+                        'filename': result['filename'],
+                        'file_path': result['file_path'],
+                        'created_at': timezone.now().isoformat()
+                    }
+                )
+                
+                # 更新索引标记
+                try:
+                    file_obj = FileSave.objects.get(id=result['file_id'])
+                    file_obj.is_indexed = True
+                    file_obj.save()
+                except FileSave.DoesNotExist:
+                    pass
+            
+            return Response(result)
+            
+        except Exception as e:
+            logger.error(f"保存到相似文件失败: {e}")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def append_to_file(self, file: FileSave, content: str, url: str, title: str) -> dict:
+        """追加内容到文件尾部"""
+        try:
+            # 解码现有内容
+            existing_content = base64.b64decode(file.content_data).decode('utf-8')
+            
+            # 添加分隔符和元数据
+            separator = "\n\n---\n\n"
+            metadata = f"**来源**: {title}\n**链接**: {url}\n**时间**: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            new_content = existing_content + separator + metadata + content
+            
+            # 重新编码为base64
+            new_content_b64 = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
+            
+            # 更新数据库记录
+            file.content_data = new_content_b64
+            file.file_size = len(new_content.encode('utf-8'))
+            file.save()
+            
+            # 更新本地文件
+            if os.path.exists(file.file_path):
+                with open(file.file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+            
+            # 创建历史记录
+            FileSaveHistory.objects.create(
+                original_filename=f"追加到 {file.filename}",
+                final_path=file.file_path,
+                file_size=len(content.encode('utf-8')),
+                file_extension=file.file_extension,
+                content_preview=content[:200] + "..." if len(content) > 200 else content,
+                save_mode='append_to_similar'
+            )
+            
+            return {
+                'success': True,
+                'message': f'内容已追加到文件: {file.filename}',
+                'filename': file.filename,
+                'file_path': file.file_path,
+                'file_id': file.id
+            }
+            
+        except Exception as e:
+            logger.error(f"追加文件失败: {e}")
+            return {'success': False, 'message': f'追加文件失败: {str(e)}'}
+    
+    def create_new_file(self, content: str, url: str, title: str, is_selection: bool = False) -> dict:
+        """创建新文件"""
+        try:
+            # 生成文件名
+            timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+            prefix = "selection" if is_selection else "document"
+            filename = f"{prefix}_{timestamp}.md"
+            file_path = f"./uploads/{prefix}s/{filename}"
+            
+            # 添加元数据
+            metadata = f"# {title}\n\n**来源链接**: {url}\n**保存时间**: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n**类型**: {'选区内容' if is_selection else '文档'}\n\n---\n\n"
+            full_content = metadata + content
+            
+            # 编码为base64
+            content_b64 = base64.b64encode(full_content.encode('utf-8')).decode('utf-8')
+            
+            # 创建文件保存记录
+            file_save = FileSave.objects.create(
+                filename=filename,
+                file_path=file_path,
+                file_size=len(full_content.encode('utf-8')),
+                file_extension='md',
+                content_type='text/markdown',
+                content_data=content_b64,
+                is_indexed=False  # 稍后会在调用方设置为True
+            )
+            
+            # 保存到本地文件
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(full_content)
+            
+            return {
+                'success': True,
+                'message': f'已创建新文件: {filename}',
+                'filename': filename,
+                'file_path': file_path,
+                'file_id': file_save.id
+            }
+            
+        except Exception as e:
+            logger.error(f"创建文件失败: {e}")
+            return {'success': False, 'message': f'创建文件失败: {str(e)}'}
+    
+    @action(detail=False, methods=['post'])
+    def rebuild_similarity_index(self, request):
+        """重建相似度索引"""
+        try:
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            count = similarity_service.rebuild_index_from_database()
+            
+            # 更新所有文档的索引标记
+            FileSave.objects.filter(
+                content_type__in=['text/markdown', 'text/plain']
+            ).update(is_indexed=True)
+            
+            return Response({
+                'success': True,
+                'message': f'索引重建完成，处理了 {count} 个文档'
+            })
+        except Exception as e:
+            logger.error(f"重建索引失败: {e}")
+            return Response({
+                'success': False,
+                'message': f'重建索引失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def similarity_index_stats(self, request):
+        """获取相似度索引统计信息"""
+        try:
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            stats = similarity_service.get_index_stats()
+            return Response({
+                'success': True,
+                'data': stats
+            })
+        except Exception as e:
+            logger.error(f"获取索引统计失败: {e}")
+            return Response({
+                'success': False,
+                'message': f'获取索引统计失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class FilePathViewSet(viewsets.ModelViewSet):
@@ -419,3 +815,207 @@ class FilePathViewSet(viewsets.ModelViewSet):
             'message': f'成功删除 {deleted_count} 个路径',
             'deleted_count': deleted_count
         })
+    
+    @action(detail=False, methods=['post'])
+    def save_to_similar_file(self, request):
+        """保存内容到相似文件"""
+        try:
+            content = request.data.get('content', '')
+            target_file_id = request.data.get('target_file_id')
+            url = request.data.get('url', '')
+            title = request.data.get('title', '')
+            is_selection = request.data.get('is_selection', False)
+            
+            if not content:
+                return Response({
+                    'success': False,
+                    'message': '内容不能为空'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 如果指定了目标文件ID，则追加到该文件
+            if target_file_id and is_selection:
+                try:
+                    target_file = FileSave.objects.get(id=target_file_id)
+                    result = self.append_to_file(target_file, content, url, title)
+                    return Response(result)
+                except FileSave.DoesNotExist:
+                    return Response({
+                        'success': False,
+                        'message': '目标文件不存在'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # 否则创建新文件
+            result = self.create_new_file(content, url, title, is_selection)
+            
+            # 将新文件添加到相似度索引（如果服务可用）
+            if result['success']:
+                # similarity_service 已经在模块级别导入
+                if similarity_service:
+                    similarity_service.add_document(
+                    doc_id=str(result['file_id']),
+                    content=content,
+                    metadata={
+                        'filename': result['filename'],
+                        'file_path': result['file_path'],
+                        'created_at': timezone.now().isoformat()
+                    }
+                )
+                
+                # 更新索引标记
+                try:
+                    file_obj = FileSave.objects.get(id=result['file_id'])
+                    file_obj.is_indexed = True
+                    file_obj.save()
+                except FileSave.DoesNotExist:
+                    pass
+            
+            return Response(result)
+            
+        except Exception as e:
+            logger.error(f"保存到相似文件失败: {e}")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def append_to_file(self, file: FileSave, content: str, url: str, title: str) -> dict:
+        """追加内容到文件尾部"""
+        try:
+            # 解码现有内容
+            existing_content = base64.b64decode(file.content_data).decode('utf-8')
+            
+            # 添加分隔符和元数据
+            separator = "\n\n---\n\n"
+            metadata = f"**来源**: {title}\n**链接**: {url}\n**时间**: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            new_content = existing_content + separator + metadata + content
+            
+            # 重新编码为base64
+            new_content_b64 = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
+            
+            # 更新数据库记录
+            file.content_data = new_content_b64
+            file.file_size = len(new_content.encode('utf-8'))
+            file.save()
+            
+            # 更新本地文件
+            if os.path.exists(file.file_path):
+                with open(file.file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+            
+            # 创建历史记录
+            FileSaveHistory.objects.create(
+                original_filename=f"追加到 {file.filename}",
+                final_path=file.file_path,
+                file_size=len(content.encode('utf-8')),
+                file_extension=file.file_extension,
+                content_preview=content[:200] + "..." if len(content) > 200 else content,
+                save_mode='append_to_similar'
+            )
+            
+            return {
+                'success': True,
+                'message': f'内容已追加到文件: {file.filename}',
+                'filename': file.filename,
+                'file_path': file.file_path,
+                'file_id': file.id
+            }
+            
+        except Exception as e:
+            logger.error(f"追加文件失败: {e}")
+            return {'success': False, 'message': f'追加文件失败: {str(e)}'}
+    
+    def create_new_file(self, content: str, url: str, title: str, is_selection: bool = False) -> dict:
+        """创建新文件"""
+        try:
+            # 生成文件名
+            timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+            prefix = "selection" if is_selection else "document"
+            filename = f"{prefix}_{timestamp}.md"
+            file_path = f"./uploads/{prefix}s/{filename}"
+            
+            # 添加元数据
+            metadata = f"# {title}\n\n**来源链接**: {url}\n**保存时间**: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\n**类型**: {'选区内容' if is_selection else '文档'}\n\n---\n\n"
+            full_content = metadata + content
+            
+            # 编码为base64
+            content_b64 = base64.b64encode(full_content.encode('utf-8')).decode('utf-8')
+            
+            # 创建文件保存记录
+            file_save = FileSave.objects.create(
+                filename=filename,
+                file_path=file_path,
+                file_size=len(full_content.encode('utf-8')),
+                file_extension='md',
+                content_type='text/markdown',
+                content_data=content_b64,
+                is_indexed=False  # 稍后会在调用方设置为True
+            )
+            
+            # 保存到本地文件
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(full_content)
+            
+            return {
+                'success': True,
+                'message': f'已创建新文件: {filename}',
+                'filename': filename,
+                'file_path': file_path,
+                'file_id': file_save.id
+            }
+            
+        except Exception as e:
+            logger.error(f"创建文件失败: {e}")
+            return {'success': False, 'message': f'创建文件失败: {str(e)}'}
+    
+    @action(detail=False, methods=['post'])
+    def rebuild_similarity_index(self, request):
+        """重建相似度索引"""
+        try:
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            count = similarity_service.rebuild_index_from_database()
+            
+            # 更新所有文档的索引标记
+            FileSave.objects.filter(
+                content_type__in=['text/markdown', 'text/plain']
+            ).update(is_indexed=True)
+            
+            return Response({
+                'success': True,
+                'message': f'索引重建完成，处理了 {count} 个文档'
+            })
+        except Exception as e:
+            logger.error(f"重建索引失败: {e}")
+            return Response({
+                'success': False,
+                'message': f'重建索引失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def similarity_index_stats(self, request):
+        """获取相似度索引统计信息"""
+        try:
+            # similarity_service 已经在模块级别导入
+            if not similarity_service:
+                return Response({
+                    'success': False,
+                    'message': '相似度服务不可用'
+                })
+            
+            stats = similarity_service.get_index_stats()
+            return Response({
+                'success': True,
+                'data': stats
+            })
+        except Exception as e:
+            logger.error(f"获取索引统计失败: {e}")
+            return Response({
+                'success': False,
+                'message': f'获取索引统计失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

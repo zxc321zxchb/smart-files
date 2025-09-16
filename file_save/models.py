@@ -52,6 +52,7 @@ class FileSave(models.Model):
     content_type = models.CharField(max_length=100, verbose_name="内容类型")
     content_data = models.TextField(verbose_name="文件内容(base64编码)")
     file_path_ref = models.ForeignKey(FilePath, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="关联路径")
+    is_indexed = models.BooleanField(default=False, verbose_name="是否已索引")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
     
@@ -80,3 +81,35 @@ class FileSave(models.Model):
         """判断是否为文档文件"""
         doc_extensions = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt']
         return self.file_extension.lower() in doc_extensions
+
+
+class FileSaveHistory(models.Model):
+    """文件保存历史记录模型"""
+    SAVE_MODE_CHOICES = [
+        ('normal', '普通保存'),
+        ('append_to_similar', '追加到相似文件'),
+        ('smart_save', '智能保存'),
+    ]
+    
+    original_filename = models.CharField(max_length=255, verbose_name="原始文件名")
+    final_path = models.TextField(verbose_name="最终保存路径")
+    file_size = models.BigIntegerField(verbose_name="文件大小(字节)")
+    file_extension = models.CharField(max_length=20, blank=True, verbose_name="文件扩展名")
+    content_preview = models.TextField(blank=True, verbose_name="内容预览")
+    save_mode = models.CharField(max_length=20, choices=SAVE_MODE_CHOICES, default='normal', verbose_name="保存模式")
+    source_url = models.URLField(blank=True, verbose_name="来源URL")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    
+    class Meta:
+        db_table = 'file_save_histories'
+        ordering = ['-created_at']
+        verbose_name = "文件保存历史"
+        verbose_name_plural = "文件保存历史"
+    
+    def __str__(self):
+        return f"{self.original_filename} ({self.get_save_mode_display()})"
+    
+    @property
+    def file_size_mb(self):
+        """返回文件大小(MB)"""
+        return round(self.file_size / (1024 * 1024), 2)

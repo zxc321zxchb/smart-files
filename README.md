@@ -11,6 +11,7 @@
 - **性能监控**: 系统操作性能统计和分析
 - **数据查询**: 多维度数据查询和统计分析
 - **数据导出**: 支持CSV和JSON格式导出
+- **智能保存**: 基于AI的相似文件检测和智能保存功能
 
 ### 技术特性
 - **RESTful API**: 完整的REST API设计
@@ -57,6 +58,27 @@ file_save_system/
 └── README.md             # 项目说明
 ```
 
+## 智能保存功能
+
+### 功能概述
+智能保存功能基于AI技术，能够：
+- **相似文件检测**: 使用SentenceTransformer模型分析文件内容相似度
+- **智能推荐**: 自动推荐最相似的文件进行内容追加
+- **语义理解**: 理解文件内容的语义，不仅仅是文本匹配
+- **索引管理**: 使用FAISS向量数据库进行高效的相似度搜索
+
+### 技术架构
+- **文本嵌入**: SentenceTransformer (all-MiniLM-L6-v2)
+- **向量搜索**: FAISS (Facebook AI Similarity Search)
+- **相似度算法**: 余弦相似度
+- **索引存储**: 本地FAISS索引文件
+
+### API端点
+- `POST /api/files/find_similar/` - 查找相似文件
+- `POST /api/files/save_to_similar/` - 保存到相似文件
+- `GET /api/files/similarity_debug/` - 相似度服务调试
+- `POST /api/files/rebuild_similarity_index/` - 重建相似度索引
+
 ## 快速开始
 
 ### 1. 环境要求
@@ -80,6 +102,9 @@ source venv/bin/activate
 
 # 安装依赖
 pip install -r requirements.txt
+
+# 安装智能保存功能依赖（可选）
+python install_smart_save_deps.py
 
 # 创建必要目录
 mkdir -p logs data static media

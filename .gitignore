@@ -89,3 +89,4 @@ file_save_system.exe
 
 # GitHub Actions
 .github/workflows/build.yml.bak
+/data/
