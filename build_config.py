@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # PyInstaller配置
 PYINSTALLER_CONFIG = {
-    'name': 'SmartFilesApp',
+    'name': 'file_save_system',
     'main_script': 'manage.py',
     'onefile': True,
     'console': True,

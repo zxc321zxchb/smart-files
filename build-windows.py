@@ -113,7 +113,7 @@ class WindowsPyInstallerBuilder:
         """构建后设置"""
         print_safe("构建后设置...")
         
-        exe_file = self.dist_dir / 'SmartFilesApp.exe'
+        exe_file = self.dist_dir / 'file_save_system.exe'
         
         if exe_file.exists():
             print_safe(f"   可执行文件已生成: {exe_file}")
@@ -126,7 +126,7 @@ echo 启动文件保存系统...
 echo 访问地址: http://localhost:8000
 echo 按Ctrl+C停止服务
 echo.
-SmartFilesApp.exe runserver 0.0.0.0:8000
+file_save_system.exe runserver 0.0.0.0:8000
 pause
 ''')
             print_safe(f"   创建启动脚本: {bat_file}")
@@ -174,7 +174,7 @@ pause
         print_safe(f"   可执行文件位置: {self.dist_dir}")
         print_safe("   使用方法:")
         print_safe("   - 双击 start_server.bat 启动服务")
-        print_safe("   - 或直接运行 SmartFilesApp.exe")
+        print_safe("   - 或直接运行 file_save_system.exe")
         print_safe("   - 访问 http://localhost:8000 使用系统")
         
         return True

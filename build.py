@@ -111,9 +111,9 @@ class PyInstallerBuilder:
         """构建后设置"""
         print("🔧 构建后设置...")
         
-        exe_file = self.dist_dir / 'SmartFilesApp'
+        exe_file = self.dist_dir / 'file_save_system'
         if sys.platform == 'win32':
-            exe_file = self.dist_dir / 'SmartFilesApp.exe'
+            exe_file = self.dist_dir / 'file_save_system.exe'
             
         if exe_file.exists():
             print(f"   ✅ 可执行文件已生成: {exe_file}")
@@ -198,10 +198,10 @@ echo ""
         print("   使用方法:")
         if sys.platform == 'win32':
             print("   - 双击 start_server.bat 启动服务")
-            print("   - 或直接运行 SmartFilesApp.exe")
+            print("   - 或直接运行 file_save_system.exe")
         else:
             print("   - 运行 ./start_server.sh 启动服务")
-            print("   - 或直接运行 ./SmartFilesApp")
+            print("   - 或直接运行 ./file_save_system")
         print("   - 访问 http://localhost:8000 使用系统")
         
         return True

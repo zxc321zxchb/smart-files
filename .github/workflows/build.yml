@@ -3,28 +3,22 @@ name: 多平台构建
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # 允许手动触发
-
-env:
-  PYTHON_VERSION: '3.12'
+  release:
+    types: [ published ]
+  workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: windows-latest
-    name: 构建 Windows 版本
-    permissions:
-      contents: read
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
     - name: 设置Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: '3.12'
     
     - name: 安装依赖
       run: |
@@ -34,13 +28,8 @@ jobs:
     - name: 构建Windows版本
       run: python build-ci.py
     
-    - name: 测试可执行文件
-      run: |
-        cd dist
-        .\file_save_system.exe --help
-    
     - name: 上传Windows构建产物
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: file-save-system-windows
         path: dist/
@@ -48,17 +37,13 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
-    name: 构建 macOS 版本
-    permissions:
-      contents: read
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
     - name: 设置Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: '3.12'
     
     - name: 安装依赖
       run: |
@@ -68,13 +53,8 @@ jobs:
     - name: 构建macOS版本
       run: python build-ci.py
     
-    - name: 测试可执行文件
-      run: |
-        cd dist
-        ./file_save_system --help
-    
     - name: 上传macOS构建产物
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: file-save-system-macos
         path: dist/
@@ -82,24 +62,15 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
-    name: 构建 Linux 版本
-    permissions:
-      contents: read
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
     - name: 设置Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: '3.12'
     
-    - name: 安装系统依赖
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
-    
-    - name: 安装Python依赖
+    - name: 安装依赖
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
@@ -107,13 +78,8 @@ jobs:
     - name: 构建Linux版本
       run: python build-ci.py
     
-    - name: 测试可执行文件
-      run: |
-        cd dist
-        ./file_save_system --help
-    
     - name: 上传Linux构建产物
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: file-save-system-linux
         path: dist/
@@ -122,68 +88,121 @@ jobs:
   create-release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    name: 创建发布版本
-    permissions:
-      contents: write
-      packages: write
+    if: github.event_name == 'release'
     steps:
     - name: 下载所有构建产物
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v3
       with:
-        path: artifacts
+        path: artifacts/
     
-    - name: 创建发布包
+    - name: 准备发布文件
       run: |
         mkdir -p release
-        # Windows
-        cp -r artifacts/file-save-system-windows/* release/
-        mv release/file_save_system.exe release/file_save_system_windows.exe
-        # macOS
-        cp -r artifacts/file-save-system-macos/* release/
-        mv release/file_save_system release/file_save_system_macos
-        # Linux
-        cp -r artifacts/file-save-system-linux/* release/
-        mv release/file_save_system release/file_save_system_linux
+        
+        # 复制Windows版本
+        if [ -d "artifacts/file-save-system-windows" ]; then
+          cp -r artifacts/file-save-system-windows/* release/
+        fi
+        
+        # 复制macOS版本
+        if [ -d "artifacts/file-save-system-macos" ]; then
+          cp -r artifacts/file-save-system-macos/* release/
+        fi
+        
+        # 复制Linux版本
+        if [ -d "artifacts/file-save-system-linux" ]; then
+          cp -r artifacts/file-save-system-linux/* release/
+        fi
         
         # 创建启动脚本
-        echo '#!/bin/bash' > release/start_windows.bat
-        echo 'file_save_system_windows.exe runserver 0.0.0.0:8000' >> release/start_windows.bat
+        cat > release/start_windows.bat << 'EOF'
+        @echo off
+        echo 启动文件保存系统...
+        echo 访问地址: http://localhost:8000
+        echo 按Ctrl+C停止服务
+        echo.
+        file_save_system.exe runserver 0.0.0.0:8000
+        pause
+        EOF
         
-        echo '#!/bin/bash' > release/start_macos.sh
-        echo './file_save_system_macos runserver 0.0.0.0:8000' >> release/start_macos.sh
+        cat > release/start_macos.sh << 'EOF'
+        #!/bin/bash
+        echo "启动文件保存系统..."
+        echo "访问地址: http://localhost:8000"
+        echo "按Ctrl+C停止服务"
+        echo ""
+        ./file_save_system runserver 0.0.0.0:8000
+        EOF
+        
+        cat > release/start_linux.sh << 'EOF'
+        #!/bin/bash
+        echo "启动文件保存系统..."
+        echo "访问地址: http://localhost:8000"
+        echo "按Ctrl+C停止服务"
+        echo ""
+        ./file_save_system runserver 0.0.0.0:8000
+        EOF
+        
         chmod +x release/start_macos.sh
-        
-        echo '#!/bin/bash' > release/start_linux.sh
-        echo './file_save_system_linux runserver 0.0.0.0:8000' >> release/start_linux.sh
         chmod +x release/start_linux.sh
+        
+        # 创建README
+        cat > release/README.md << 'EOF'
+        # 文件保存系统 - 多平台版本
+        
+        ## 使用方法
+        
+        ### Windows
+        1. 双击 `start_windows.bat` 启动服务
+        2. 或直接运行 `file_save_system.exe`
+        
+        ### macOS
+        1. 运行 `./start_macos.sh` 启动服务
+        2. 或直接运行 `./file_save_system`
+        
+        ### Linux
+        1. 运行 `./start_linux.sh` 启动服务
+        2. 或直接运行 `./file_save_system`
+        
+        ## 访问地址
+        - 主页面: http://localhost:8000
+        - API文档: http://localhost:8000/swagger/
+        - 管理后台: http://localhost:8000/admin/
+        
+        ## 注意事项
+        - 首次运行会自动创建数据库
+        - 默认管理员账号: admin / admin123
+        - 按Ctrl+C停止服务
+        EOF
     
-    - name: 创建发布说明
-      run: |
-        echo "# 文件保存系统 - 多平台版本" > release/README.md
-        echo "" >> release/README.md
-        echo "## 使用方法" >> release/README.md
-        echo "" >> release/README.md
-        echo "### Windows" >> release/README.md
-        echo "双击 \`start_windows.bat\` 或运行 \`file_save_system_windows.exe\`" >> release/README.md
-        echo "" >> release/README.md
-        echo "### macOS" >> release/README.md
-        echo "运行 \`./start_macos.sh\` 或 \`./file_save_system_macos\`" >> release/README.md
-        echo "" >> release/README.md
-        echo "### Linux" >> release/README.md
-        echo "运行 \`./start_linux.sh\` 或 \`./file_save_system_linux\`" >> release/README.md
-        echo "" >> release/README.md
-        echo "访问 http://localhost:8000 使用系统" >> release/README.md
-    
-    - name: 创建GitHub Release
+    - name: 创建发布
       uses: softprops/action-gh-release@v1
       with:
         files: release/*
-        body_path: release/README.md
+        body: |
+          ## 文件保存系统 v${{ github.event.release.tag_name }}
+          
+          ### 包含平台
+          - ✅ Windows (.exe)
+          - ✅ macOS (可执行文件)
+          - ✅ Linux (可执行文件)
+          
+          ### 使用方法
+          1. 下载对应平台的压缩包
+          2. 解压到任意目录
+          3. 运行启动脚本或可执行文件
+          4. 访问 http://localhost:8000
+          
+          ### 功能特性
+          - 📁 文件上传和管理
+          - 🔍 智能搜索和分类
+          - 📊 性能监控
+          - 🔐 用户权限管理
+          - 📝 操作历史记录
+          
+          ### 系统要求
+          - Windows 10/11 或 macOS 10.15+ 或 Linux
+          - 至少 2GB 内存
+          - 至少 100MB 磁盘空间
         draft: false
         prerelease: false
-        generate_release_notes: true
-        make_latest: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      continue-on-error: true

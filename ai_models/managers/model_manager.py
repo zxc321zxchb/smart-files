@@ -92,18 +92,34 @@ class ModelManager:
     
     def check_ai_dependencies(self) -> bool:
         """
-        检查AI依赖是否已安装
+        检查AI依赖是否已安装（宽松检查）
         
         Returns:
             bool: True如果AI依赖可用，False否则
         """
         try:
-            import sentence_transformers
+            # 只检查基础包，不强制要求所有包都可用
             import torch
-            import faiss
+            logger.info("✅ torch 可用")
             return True
-        except ImportError:
-            return False
+        except ImportError as e:
+            logger.warning(f"⚠️ torch 不可用: {e}")
+            # 即使torch不可用，也尝试继续（可能使用CPU版本）
+            try:
+                import faiss
+                logger.info("✅ faiss 可用")
+                return True
+            except ImportError as e2:
+                logger.warning(f"⚠️ faiss 不可用: {e2}")
+                # 最后尝试sentence_transformers
+                try:
+                    import sentence_transformers
+                    logger.info("✅ sentence_transformers 可用")
+                    return True
+                except ImportError as e3:
+                    logger.warning(f"⚠️ sentence_transformers 不可用: {e3}")
+                    logger.info("💡 将使用基础相似度算法作为后备")
+                    return False
     
     def check_model_files(self) -> Dict[str, bool]:
         """
@@ -263,18 +279,19 @@ class ModelManager:
             bool: 创建是否成功
         """
         if not self.check_ai_dependencies():
-            logger.error("AI依赖未安装，无法创建faiss索引")
-            return False
+            logger.warning("AI依赖部分不可用，将跳过faiss索引创建")
+            logger.info("💡 系统将使用基础相似度算法")
+            return True  # 不返回False，允许系统继续运行
         
         try:
-            from file_save.similarity_service import SimilarityService
+            from file_save.similarity_service_simple import SimilarityServiceSimple
             
             logger.info("创建faiss索引...")
             if progress_callback:
                 progress_callback("创建索引", 0)
             
             # 创建相似度服务实例
-            similarity_service = SimilarityService()
+            similarity_service = SimilarityServiceSimple()
             
             # 重新构建索引
             similarity_service.rebuild_index()

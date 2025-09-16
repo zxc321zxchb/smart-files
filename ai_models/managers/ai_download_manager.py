@@ -141,7 +141,7 @@ class AIDownloadManager:
             if is_pyinstaller:
                 # 在PyInstaller环境中使用预编译包
                 logger.info("检测到PyInstaller环境，使用预编译包安装")
-                from precompiled_package_manager import get_precompiled_package_manager
+                from .precompiled_package_manager import get_precompiled_package_manager
                 
                 package_manager = get_precompiled_package_manager()
                 
@@ -198,7 +198,7 @@ class AIDownloadManager:
             if is_pyinstaller:
                 # 在PyInstaller环境中使用预编译包
                 logger.info("检测到PyInstaller环境，使用预编译包安装模型")
-                from precompiled_package_manager import get_precompiled_package_manager
+                from .precompiled_package_manager import get_precompiled_package_manager
                 
                 package_manager = get_precompiled_package_manager()
                 
@@ -212,7 +212,7 @@ class AIDownloadManager:
             else:
                 # 在开发环境中使用传统下载方式
                 logger.info("开发环境，使用传统方式下载模型")
-                from model_manager import get_model_manager
+                from .model_manager import get_model_manager
                 manager = get_model_manager()
                 
                 def progress_callback(file_name, progress):
@@ -257,7 +257,7 @@ class AIDownloadManager:
     def _create_faiss_index(self) -> bool:
         """创建faiss索引"""
         try:
-            from model_manager import get_model_manager
+            from .model_manager import get_model_manager
             manager = get_model_manager()
             
             def progress_callback(message, progress):

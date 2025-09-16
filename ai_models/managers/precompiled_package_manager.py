@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # 尝试导入S3下载管理器
 try:
-    from s3_download_manager import get_s3_download_manager
+    from .s3_download_manager import get_s3_download_manager
     S3_AVAILABLE = True
 except ImportError:
     S3_AVAILABLE = False
@@ -142,7 +142,7 @@ class PrecompiledPackageManager:
         Returns:
             Dict: 包配置
         """
-        config_file = self.base_dir / 'precompiled_package_config.json'
+        config_file = self.base_dir / 'ai_models' / 'config' / 'precompiled_package_config.json'
         
         if config_file.exists():
             try:

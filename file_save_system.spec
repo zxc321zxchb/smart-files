@@ -4,6 +4,9 @@ import os
 import sys
 from pathlib import Path
 
+# 增加递归限制以解决PyInstaller递归错误
+sys.setrecursionlimit(sys.getrecursionlimit() * 5)
+
 # 项目根目录
 BASE_DIR = Path(SPECPATH).resolve().parent
 
@@ -24,23 +27,85 @@ datas = [(src, dst) for src, dst in datas if os.path.exists(src)]
 
 # 隐藏导入列表
 hiddenimports = [
+    # Django核心模块
+    'django',
+    'django.core',
     'django.core.management',
     'django.core.management.commands',
     'django.core.management.commands.runserver',
     'django.core.management.commands.migrate',
     'django.core.management.commands.collectstatic',
+    'django.core.management.commands.check',
+    'django.core.management.commands.compilemessages',
+    'django.core.management.commands.createcachetable',
+    'django.core.management.commands.dbshell',
+    'django.core.management.commands.diffsettings',
+    'django.core.management.commands.dumpdata',
+    'django.core.management.commands.flush',
+    'django.core.management.commands.inspectdb',
+    'django.core.management.commands.loaddata',
+    'django.core.management.commands.makemessages',
+    'django.core.management.commands.makemigrations',
+    'django.core.management.commands.optimizemigration',
+    'django.core.management.commands.sendtestemail',
+    'django.core.management.commands.shell',
+    'django.core.management.commands.showmigrations',
+    'django.core.management.commands.sqlflush',
+    'django.core.management.commands.sqlmigrate',
+    'django.core.management.commands.sqlsequencereset',
+    'django.core.management.commands.squashmigrations',
+    'django.core.management.commands.startapp',
+    'django.core.management.commands.startproject',
+    'django.core.management.commands.test',
+    'django.core.management.commands.testserver',
+    
+    # Django数据库后端
+    'django.db',
+    'django.db.backends',
     'django.db.backends.sqlite3',
+    'django.db.backends.sqlite3.base',
+    'django.db.backends.sqlite3.client',
+    'django.db.backends.sqlite3.creation',
+    'django.db.backends.sqlite3.features',
+    'django.db.backends.sqlite3.introspection',
+    'django.db.backends.sqlite3.operations',
+    'django.db.backends.sqlite3.schema',
+    
+    # Django应用模块
+    'django.contrib',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Django REST Framework
     'rest_framework',
     'rest_framework.renderers',
     'rest_framework.parsers',
     'rest_framework.pagination',
     'rest_framework.filters',
+    'rest_framework.views',
+    'rest_framework.viewsets',
+    'rest_framework.serializers',
+    'rest_framework.response',
+    'rest_framework.request',
+    'rest_framework.permissions',
+    'rest_framework.authentication',
+    'rest_framework.throttling',
+    'rest_framework.pagination',
+    'rest_framework.filters',
+    'rest_framework.decorators',
+    'rest_framework.routers',
+    'rest_framework.status',
+    'rest_framework.exceptions',
+    'rest_framework.settings',
+    'rest_framework.utils',
+    'rest_framework.compat',
+    'rest_framework.apps',
+    
+    # 第三方包
     'django_filters',
     'corsheaders',
     'drf_yasg',
@@ -55,27 +120,46 @@ hiddenimports = [
     'inflection',
     'packaging',
     'pytz',
-    'uritemplate'
+    'uritemplate',
+    
+    # 项目应用
+    'file_save',
+    'file_history',
+    'performance',
+    'ai_models',
+    'ai_models.managers',
+    
+    # 基础数据处理依赖（移除重型AI依赖）
+    'numpy',
+    'scikit-learn',
+    'jieba',
 ]
 
 # 排除的模块
 excludes = [
     'tkinter',
     'matplotlib',
-    'numpy',
     'pandas',
     'scipy',
     'PIL',
     'cv2',
     'tensorflow',
-    'torch',
     'jupyter',
     'notebook',
-    'IPython'
+    'IPython',
+    # 排除重型AI依赖
+    'sentence_transformers',
+    'torch',
+    'transformers',
+    'faiss',
+    'huggingface_hub',
+    'tokenizers',
+    'accelerate',
+    'safetensors'
 ]
 
 a = Analysis(
-    ['manage.py'],
+    ['start_server_fixed.py'],
     pathex=[str(BASE_DIR)],
     binaries=[],
     datas=datas,
@@ -99,7 +183,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='SmartFilesApp',
+    name='file_save_system',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

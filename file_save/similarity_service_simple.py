@@ -38,7 +38,7 @@ class SimilarityServiceSimple:
         """尝试加载AI模型"""
         try:
             # 检查模型文件是否存在
-            from model_manager import get_model_manager
+            from ai_models import get_model_manager
             manager = get_model_manager()
             model_status = manager.check_model_files()
             
