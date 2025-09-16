@@ -84,7 +84,7 @@ media/
 build/
 dist/
 *.exe
-file_save_system
+# file_save_system
 file_save_system.exe
 
 # GitHub Actions
