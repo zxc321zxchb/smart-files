@@ -99,7 +99,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='file_save_system',
+    name='SmartFilesApp',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
