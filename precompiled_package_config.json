@@ -1,0 +1,64 @@
+{
+  "packages": {
+    "ai_dependencies": {
+      "name": "ai_dependencies",
+      "version": "1.0.0",
+      "description": "AI依赖包 - 包含sentence-transformers, torch, faiss等",
+      "download_urls": [
+        "https://23d76b352b41d77575c8640d98115aa3.r2.cloudflarestorage.com/ai_dependencies_v1.0.0.zip",
+        "https://your-cdn.com/ai_dependencies_v1.0.0.zip"
+      ],
+      "file_size_mb": 500,
+      "checksum": "sha256:your_checksum_here",
+      "required_files": [
+        "site-packages/sentence_transformers",
+        "site-packages/torch",
+        "site-packages/faiss",
+        "site-packages/transformers",
+        "site-packages/numpy",
+        "metadata.json"
+      ],
+      "platforms": ["win32", "darwin", "linux"],
+      "python_versions": ["3.8", "3.9", "3.10", "3.11"]
+    },
+    "ai_models": {
+      "name": "ai_models",
+      "version": "1.0.0",
+      "description": "AI模型包 - 包含sentence transformer模型和faiss索引",
+      "download_urls": [
+        "https://23d76b352b41d77575c8640d98115aa3.r2.cloudflarestorage.com/ai_models_v1.0.0.zip",
+        "https://your-cdn.com/ai_models_v1.0.0.zip"
+      ],
+      "file_size_mb": 100,
+      "checksum": "sha256:your_models_checksum_here",
+      "required_files": [
+        "sentence-transformers/all-MiniLM-L6-v2",
+        "similarity_index/faiss_index.bin",
+        "similarity_index/metadata.json",
+        "metadata.json"
+      ],
+      "platforms": ["win32", "darwin", "linux"],
+      "python_versions": ["3.8", "3.9", "3.10", "3.11"]
+    }
+  },
+  "config": {
+    "timeout_seconds": 300,
+    "retry_attempts": 3,
+    "retry_delay_seconds": 5,
+    "verify_checksum": true,
+    "auto_fallback": true
+  },
+  "instructions": {
+    "setup": [
+      "1. 运行 build_precompiled_packages.py 构建预编译包",
+      "2. 将生成的ZIP文件上传到CDN",
+      "3. 更新此配置文件中的下载地址和校验和",
+      "4. 测试预编译包下载和安装"
+    ],
+    "usage": [
+      "在PyInstaller环境中，系统会自动检测并使用预编译包",
+      "在开发环境中，系统会使用传统的pip安装方式",
+      "如果预编译包下载失败，系统会优雅降级到基础功能"
+    ]
+  }
+}
