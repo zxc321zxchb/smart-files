@@ -5,6 +5,7 @@
 """
 
 import os
+import sys
 import json
 import hashlib
 import logging
@@ -37,6 +38,11 @@ class SimilarityServiceSimple:
     def _try_load_ai_model(self):
         """尝试加载AI模型"""
         try:
+            # 在打包环境中跳过AI模型加载
+            if getattr(sys, 'frozen', False):
+                logger.info("打包环境，跳过AI模型加载，使用基础相似度算法")
+                return
+                
             # 检查模型文件是否存在
             from ai_models import get_model_manager
             manager = get_model_manager()

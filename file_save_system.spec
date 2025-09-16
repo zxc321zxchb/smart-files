@@ -133,14 +133,32 @@ hiddenimports = [
     'file_save',
     'file_history',
     'performance',
-    'ai_models',
-    'ai_models.managers',
     'model_manager',
     
     # 基础数据处理依赖（移除重型AI依赖）
     'numpy',
     'scikit-learn',
     'jieba',
+    
+    # 确保Django模板引擎正常工作
+    'django.template',
+    'django.template.loader',
+    'django.template.context_processors',
+    'django.template.backends',
+    'django.template.backends.django',
+    
+    # 确保Django中间件正常工作
+    'django.middleware',
+    'django.middleware.security',
+    'django.middleware.common',
+    'django.middleware.csrf',
+    'django.middleware.clickjacking',
+    'corsheaders.middleware',
+    
+    # 确保Django缓存正常工作
+    'django.core.cache',
+    'django.core.cache.backends',
+    'django.core.cache.backends.locmem',
 ]
 
 # 排除的模块

@@ -54,6 +54,11 @@ def check_ai_environment():
     print("🤖 检查AI环境状态...")
     
     try:
+        # 在打包环境中跳过AI检查，直接返回False
+        if getattr(sys, 'frozen', False):
+            print("   📦 打包环境，跳过AI功能检查")
+            return False
+            
         from model_manager import get_model_manager
         manager = get_model_manager()
         status = manager.get_model_status()
@@ -106,7 +111,13 @@ def start_ai_download_background():
     def download_worker():
         """后台下载工作线程"""
         try:
-            from ai_download_manager import AIDownloadManager
+            # 在打包环境中跳过AI下载
+            if getattr(sys, 'frozen', False):
+                print("\n📦 打包环境，跳过AI模型下载")
+                print("   💡 将使用基础相似度算法")
+                return
+                
+            from ai_models.managers.ai_download_manager import AIDownloadManager
             downloader = AIDownloadManager()
             
             print("\n🔄 开始后台下载AI模型...")

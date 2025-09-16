@@ -116,14 +116,40 @@ DATABASES = {
 
 # 处理PyInstaller打包后的数据库路径
 if getattr(sys, 'frozen', False):
-    # 打包后使用当前工作目录下的数据库
+    # 打包后使用可执行文件同目录下的数据库
     import tempfile
-    temp_dir = tempfile.gettempdir()
-    DATABASES['default']['NAME'] = os.path.join(temp_dir, 'file_save.db')
+    import shutil
+    
+    # 获取可执行文件所在目录
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller临时目录
+        exe_dir = os.path.dirname(sys.executable)
+    else:
+        # 普通可执行文件目录
+        exe_dir = os.path.dirname(sys.executable)
+    
+    # 创建数据目录
+    data_dir = os.path.join(exe_dir, 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # 设置数据库路径
+    DATABASES['default']['NAME'] = os.path.join(data_dir, 'file_save.db')
     
     # 设置模型文件路径
-    MODELS_DIR = os.path.join(temp_dir, 'models')
+    MODELS_DIR = os.path.join(data_dir, 'models')
     os.makedirs(MODELS_DIR, exist_ok=True)
+    
+    # 设置日志目录
+    LOGS_DIR = os.path.join(data_dir, 'logs')
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    
+    # 更新日志配置
+    LOGGING['handlers']['file']['filename'] = os.path.join(LOGS_DIR, 'django.log')
+    
+    print(f"🔧 打包环境数据目录: {data_dir}")
+    print(f"🗄️  数据库路径: {DATABASES['default']['NAME']}")
+    print(f"🤖 模型目录: {MODELS_DIR}")
+    print(f"📝 日志目录: {LOGS_DIR}")
 else:
     # 开发环境模型路径
     MODELS_DIR = os.path.join(BASE_DIR, 'data', 'models')
