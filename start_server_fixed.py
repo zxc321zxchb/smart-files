@@ -30,7 +30,7 @@ def setup_django():
     
     # 初始化pandoc管理器
     try:
-        from file_save.pandoc_manager import PandocManager
+        from pandoc_manager import PandocManager
         manager = PandocManager()
         pandoc_path = manager.ensure_pandoc()
         if pandoc_path:
@@ -65,25 +65,9 @@ def check_ai_environment():
     """检查AI环境状态"""
     print("🤖 检查AI环境状态...")
     
-    try:
-        # 在打包环境中跳过AI检查，直接返回False
-        # if getattr(sys, 'frozen', False):
-            # print("   📦 打包环境，跳过AI功能检查")
-            # return False
-            
-        from model_manager import get_model_manager
-        manager = get_model_manager()
-        status = manager.get_model_status()
-        
-        print(f"   AI依赖可用: {'✅' if status['ai_dependencies_available'] else '❌'}")
-        print(f"   模型文件状态: {status['model_files_status']}")
-        print(f"   完整AI功能: {'✅' if status['all_ready'] else '❌'}")
-        
-        return status['all_ready']
-        
-    except Exception as e:
-        print(f"   ⚠️  检查AI环境失败: {e}")
-        return False
+    # AI功能已禁用，直接返回False
+    print("   💡 提示: AI功能不可用，将使用基础相似度算法")
+    return False
 
 def ask_user_for_ai_download():
     """询问用户是否下载AI模型"""
@@ -117,54 +101,9 @@ def ask_user_for_ai_download():
 
 def start_ai_download_background():
     """在后台启动AI模型下载"""
-    import threading
-    import time
-    
-    def download_worker():
-        """后台下载工作线程"""
-        try:
-            # 在打包环境中跳过AI下载
-            # if getattr(sys, 'frozen', False):
-            #     print("\n📦 打包环境，跳过AI模型下载")
-            #     print("   💡 将使用基础相似度算法")
-            #     return
-                
-            from ai_models.managers.ai_download_manager import AIDownloadManager
-            downloader = AIDownloadManager()
-            
-            print("\n🔄 开始后台下载AI模型...")
-            print("   📡 正在下载，请稍候...")
-            print("   💡 下载期间您可以正常使用应用")
-            print("   📋 下载进度将实时显示：")
-            
-            success = downloader.download_ai_environment()
-            
-            if success:
-                print("\n✅ AI模型下载完成！")
-                print("   🎉 智能相似度检测功能已启用")
-                print("   🔄 正在重新加载AI服务...")
-                
-                # 通知相似度服务重新加载
-                try:
-                    from file_save.similarity_service_simple import similarity_service_simple
-                    if hasattr(similarity_service_simple, 'reload_ai_model'):
-                        similarity_service_simple.reload_ai_model()
-                        print("   ✅ AI服务重新加载成功")
-                except Exception as e:
-                    print(f"   ⚠️  AI服务重新加载失败: {e}")
-            else:
-                print("\n❌ AI模型下载失败")
-                print("   💡 将继续使用基础相似度算法")
-                
-        except Exception as e:
-            print(f"\n❌ 后台下载出错: {e}")
-            print("   💡 将继续使用基础相似度算法")
-    
-    # 启动后台下载线程
-    download_thread = threading.Thread(target=download_worker, daemon=True)
-    download_thread.start()
-    
-    return download_thread
+    # AI功能已禁用，直接返回None
+    print("   💡 将继续使用基础相似度算法")
+    return None
 
 def parse_arguments():
     """解析命令行参数"""
@@ -194,20 +133,9 @@ def start_server():
         # 检查AI环境
         ai_ready = check_ai_environment()
         
-        # 根据命令行参数决定AI处理策略
-        if args.no_ai:
-            print("\n📝 已禁用AI功能，将使用基础相似度算法")
-            print("   💡 如需启用AI功能，请重新启动时不使用 --no-ai 参数")
-        elif not ai_ready:
-            print("\n💡 提示: AI功能不可用，将使用基础相似度算法")
-            
-            # 自动启动AI模型下载（不再询问用户）
-            print("🔄 正在自动启动AI模型下载...")
-            download_thread = start_ai_download_background()
-            print("   📋 下载进度将实时显示：")
-            print("   💡 下载期间您可以正常使用应用")
-        else:
-            print("\n✅ AI功能已就绪，将使用智能相似度检测")
+        # AI功能已禁用，始终使用基础相似度算法
+        print("\n📝 AI功能已禁用，将使用基础相似度算法")
+        print("   💡 系统将使用轻量级相似度检测算法")
         
         # 自动创建数据库表
         create_database_tables()

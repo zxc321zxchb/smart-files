@@ -183,7 +183,7 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     def get_pandoc_path(self):
         """获取pandoc可执行文件路径"""
         try:
-            from .pandoc_manager import get_pandoc_path
+            from pandoc_manager import get_pandoc_path
             return get_pandoc_path()
         except ImportError:
             # 如果pandoc_manager不可用，使用简单检查

@@ -20,8 +20,7 @@ datas = [
     (str(BASE_DIR / 'data'), 'data'),
     (str(BASE_DIR / 'requirements.txt'), '.'),
     (str(BASE_DIR / 'manage.py'), '.'),
-    (str(BASE_DIR / 'model_manager.py'), '.'),
-    (str(BASE_DIR / 'ai_models'), 'ai_models'),
+    (str(BASE_DIR / 'pandoc_manager.py'), '.'),
 ]
 
 # 不再在构建时打包pandoc，改为运行时动态下载
@@ -137,7 +136,7 @@ hiddenimports = [
     'file_save',
     'file_history',
     'performance',
-    'model_manager',
+    'pandoc_manager',
     
     # 基础数据处理依赖（移除重型AI依赖）
     'numpy',
