@@ -184,6 +184,7 @@ class FileSaveViewSet(viewsets.ModelViewSet):
         """获取pandoc可执行文件路径"""
         import sys
         import os
+        import subprocess
         
         # 如果是PyInstaller打包的环境
         if getattr(sys, 'frozen', False):
