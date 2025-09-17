@@ -204,20 +204,16 @@ echo ""
             return False
         print()
         
-        # 步骤3: 下载pandoc
-        self.download_pandoc()
-        print()
-        
-        # 步骤4: 准备数据文件
+        # 步骤3: 准备数据文件
         self.prepare_data_files()
         print()
         
-        # 步骤5: 运行PyInstaller
+        # 步骤4: 运行PyInstaller
         if not self.run_pyinstaller():
             return False
         print()
         
-        # 步骤6: 构建后设置
+        # 步骤5: 构建后设置
         if not self.post_build_setup():
             return False
         print()

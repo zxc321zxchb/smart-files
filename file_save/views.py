@@ -182,36 +182,41 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     
     def get_pandoc_path(self):
         """获取pandoc可执行文件路径"""
-        import sys
-        import os
-        import subprocess
-        
-        # 如果是PyInstaller打包的环境
-        if getattr(sys, 'frozen', False):
-            # 获取可执行文件所在目录
-            base_path = os.path.dirname(sys.executable)
-            
-            # 在Windows上查找pandoc.exe
-            if sys.platform == 'win32':
-                pandoc_path = os.path.join(base_path, 'pandoc.exe')
-                if os.path.exists(pandoc_path):
-                    return pandoc_path
-            else:
-                # 在macOS/Linux上查找pandoc
-                pandoc_path = os.path.join(base_path, 'pandoc')
-                if os.path.exists(pandoc_path):
-                    return pandoc_path
-        
-        # 如果不是打包环境或找不到打包的pandoc，尝试系统PATH中的pandoc
         try:
-            result = subprocess.run(['pandoc', '--version'], 
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
-                return 'pandoc'
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
+            from .pandoc_manager import get_pandoc_path
+            return get_pandoc_path()
+        except ImportError:
+            # 如果pandoc_manager不可用，使用简单检查
+            import sys
+            import os
+            import subprocess
             
-        return None
+            # 如果是PyInstaller打包的环境
+            if getattr(sys, 'frozen', False):
+                # 获取可执行文件所在目录
+                base_path = os.path.dirname(sys.executable)
+                
+                # 在Windows上查找pandoc.exe
+                if sys.platform == 'win32':
+                    pandoc_path = os.path.join(base_path, 'pandoc.exe')
+                    if os.path.exists(pandoc_path):
+                        return pandoc_path
+                else:
+                    # 在macOS/Linux上查找pandoc
+                    pandoc_path = os.path.join(base_path, 'pandoc')
+                    if os.path.exists(pandoc_path):
+                        return pandoc_path
+            
+            # 如果不是打包环境或找不到打包的pandoc，尝试系统PATH中的pandoc
+            try:
+                result = subprocess.run(['pandoc', '--version'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    return 'pandoc'
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+                
+            return None
 
     def check_pandoc_available(self):
         """检查pandoc是否可用"""

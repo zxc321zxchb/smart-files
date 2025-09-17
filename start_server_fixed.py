@@ -28,6 +28,18 @@ def setup_django():
             sys.path.insert(0, current_dir)
         print(f"🔧 设置开发环境路径: {current_dir}")
     
+    # 初始化pandoc管理器
+    try:
+        from file_save.pandoc_manager import PandocManager
+        manager = PandocManager()
+        pandoc_path = manager.ensure_pandoc()
+        if pandoc_path:
+            print(f"✅ pandoc已准备就绪: {pandoc_path}")
+        else:
+            print("⚠️  pandoc不可用，文件转换功能将受限")
+    except Exception as e:
+        print(f"⚠️  pandoc管理器初始化失败: {e}")
+    
     # 设置Django设置模块
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'file_save_system.settings')
     
