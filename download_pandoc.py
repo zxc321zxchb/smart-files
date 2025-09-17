@@ -24,8 +24,15 @@ class PandocDownloader:
         """获取最新的pandoc版本"""
         try:
             import json
+            import ssl
+            
+            # 创建SSL上下文
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
             # 尝试直接访问GitHub API
-            with urllib.request.urlopen('https://api.github.com/repos/jgm/pandoc/releases/latest') as response:
+            with urllib.request.urlopen('https://api.github.com/repos/jgm/pandoc/releases/latest', context=ssl_context) as response:
                 data = json.loads(response.read().decode())
                 return data['tag_name'].lstrip('v')
         except Exception as e:
@@ -33,7 +40,7 @@ class PandocDownloader:
             try:
                 # 使用代理获取
                 proxy_url = 'https://fastgh.discoverlife.top/https://api.github.com/repos/jgm/pandoc/releases/latest'
-                with urllib.request.urlopen(proxy_url) as response:
+                with urllib.request.urlopen(proxy_url, context=ssl_context) as response:
                     data = json.loads(response.read().decode())
                     return data['tag_name'].lstrip('v')
             except Exception as e2:
@@ -54,6 +61,11 @@ class PandocDownloader:
         # 首先尝试直接下载
         try:
             print("尝试直接下载...")
+            import ssl
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
             urllib.request.urlretrieve(url, zip_path)
             print(f"直接下载完成: {zip_path}")
         except Exception as e:
@@ -191,14 +203,18 @@ class PandocDownloader:
             pass
         return False
     
-    def download_pandoc(self):
+    def download_pandoc(self, force=False):
         """下载pandoc"""
         print("开始下载pandoc...")
         
-        # 首先检查系统是否已安装pandoc
-        if self.check_system_pandoc():
-            print("系统已安装pandoc，无需下载")
-            return True
+        # 如果强制下载，跳过系统检查
+        if not force:
+            # 首先检查系统是否已安装pandoc
+            if self.check_system_pandoc():
+                print("系统已安装pandoc，无需下载")
+                return True
+        else:
+            print("强制下载模式，跳过系统检查")
         
         # 获取版本
         version = self.get_pandoc_version()
@@ -244,14 +260,21 @@ class PandocDownloader:
 
 def main():
     """主函数"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Pandoc下载器')
+    parser.add_argument('--force', action='store_true', help='强制下载，即使系统已安装pandoc')
+    args = parser.parse_args()
+    
     downloader = PandocDownloader()
     
     print("=== Pandoc下载器 ===")
     print(f"操作系统: {platform.system()}")
     print(f"架构: {platform.machine()}")
+    print(f"强制下载: {args.force}")
     print()
     
-    success = downloader.download_pandoc()
+    success = downloader.download_pandoc(force=args.force)
     
     if success:
         pandoc_path = downloader.get_pandoc_path()

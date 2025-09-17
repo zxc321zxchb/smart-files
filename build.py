@@ -69,9 +69,16 @@ class PyInstallerBuilder:
         print("📦 准备pandoc...")
         
         try:
-            # 运行pandoc下载脚本
-            result = subprocess.run([sys.executable, 'download_pandoc.py'], 
-                                  cwd=self.base_dir, check=True, capture_output=True, text=True)
+            # 根据操作系统选择下载方式
+            if sys.platform == 'win32':
+                # Windows使用批处理脚本
+                result = subprocess.run(['download_pandoc_windows.bat'], 
+                                      cwd=self.base_dir, check=True, capture_output=True, text=True)
+            else:
+                # 其他系统使用Python脚本
+                result = subprocess.run([sys.executable, 'download_pandoc_simple.py'], 
+                                      cwd=self.base_dir, check=True, capture_output=True, text=True)
+            
             print("   ✅ pandoc准备完成")
             return True
         except subprocess.CalledProcessError as e:
