@@ -180,6 +180,43 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             'count': queryset.count()
         })
     
+    def get_pandoc_path(self):
+        """获取pandoc可执行文件路径"""
+        import sys
+        import os
+        
+        # 如果是PyInstaller打包的环境
+        if getattr(sys, 'frozen', False):
+            # 获取可执行文件所在目录
+            base_path = os.path.dirname(sys.executable)
+            
+            # 在Windows上查找pandoc.exe
+            if sys.platform == 'win32':
+                pandoc_path = os.path.join(base_path, 'pandoc.exe')
+                if os.path.exists(pandoc_path):
+                    return pandoc_path
+            else:
+                # 在macOS/Linux上查找pandoc
+                pandoc_path = os.path.join(base_path, 'pandoc')
+                if os.path.exists(pandoc_path):
+                    return pandoc_path
+        
+        # 如果不是打包环境或找不到打包的pandoc，尝试系统PATH中的pandoc
+        try:
+            result = subprocess.run(['pandoc', '--version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return 'pandoc'
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+            
+        return None
+
+    def check_pandoc_available(self):
+        """检查pandoc是否可用"""
+        pandoc_path = self.get_pandoc_path()
+        return pandoc_path is not None
+
     @action(detail=True, methods=['post'])
     def convert(self, request, pk=None):
         """文件格式转换"""
@@ -195,6 +232,13 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': '目标格式不能为空'}, 
                 status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 检查pandoc是否可用
+        if not self.check_pandoc_available():
+            return Response(
+                {'error': 'Pandoc未安装，无法进行转换。请访问 https://pandoc.org/installing.html 下载并安装Pandoc，或使用包管理器安装：choco install pandoc'}, 
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
         
         try:
@@ -213,10 +257,15 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             
             # 根据目标格式进行转换
             if target_format == 'docx':
+                # 获取pandoc路径
+                pandoc_path = self.get_pandoc_path()
+                if not pandoc_path:
+                    raise Exception('Pandoc未安装，无法进行转换。请访问 https://pandoc.org/installing.html 下载并安装Pandoc，或使用包管理器安装：choco install pandoc')
+                
                 # 使用pandoc进行转换
                 try:
                     result = subprocess.run([
-                        'pandoc', temp_md_path, '-o', output_path, 
+                        pandoc_path, temp_md_path, '-o', output_path, 
                         '--from', 'markdown+fenced_code_blocks+fenced_code_attributes+inline_code_attributes', 
                         '--to', 'docx',
                         '--highlight-style', 'pygments',  # 使用pygments高亮样式
@@ -253,7 +302,7 @@ class FileSaveViewSet(viewsets.ModelViewSet):
                 except subprocess.TimeoutExpired:
                     raise Exception('转换超时')
                 except FileNotFoundError:
-                    raise Exception('Pandoc未安装，无法进行转换')
+                    raise Exception('Pandoc未安装，无法进行转换。请访问 https://pandoc.org/installing.html 下载并安装Pandoc，或使用包管理器安装：choco install pandoc')
                     
             else:
                 return Response(

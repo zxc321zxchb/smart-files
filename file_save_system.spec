@@ -24,6 +24,83 @@ datas = [
     (str(BASE_DIR / 'ai_models'), 'ai_models'),
 ]
 
+# 添加pandoc二进制文件
+import platform
+import subprocess
+
+def find_pandoc_binary():
+    """查找pandoc二进制文件"""
+    pandoc_paths = []
+    
+    # 首先检查项目目录下的pandoc
+    project_pandoc_dir = BASE_DIR / 'pandoc'
+    if platform.system() == 'Windows':
+        project_pandoc = project_pandoc_dir / 'pandoc.exe'
+    else:
+        project_pandoc = project_pandoc_dir / 'pandoc'
+    
+    if project_pandoc.exists():
+        pandoc_paths.append(str(project_pandoc))
+    
+    # Windows路径
+    if platform.system() == 'Windows':
+        # 常见的pandoc安装路径
+        possible_paths = [
+            r'C:\Program Files\Pandoc\pandoc.exe',
+            r'C:\Program Files (x86)\Pandoc\pandoc.exe',
+            r'C:\Users\{}\AppData\Local\Pandoc\pandoc.exe'.format(os.getenv('USERNAME', '')),
+            r'C:\Users\{}\AppData\Local\Microsoft\WinGet\Packages\JohnMacFarlane.Pandoc_Microsoft.Winget.Source\pandoc.exe'.format(os.getenv('USERNAME', '')),
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                pandoc_paths.append(path)
+                
+        # 尝试从PATH中查找
+        try:
+            result = subprocess.run(['where', 'pandoc'], capture_output=True, text=True)
+            if result.returncode == 0:
+                pandoc_paths.extend(result.stdout.strip().split('\n'))
+        except:
+            pass
+            
+    # macOS/Linux路径
+    else:
+        # 常见的pandoc安装路径
+        possible_paths = [
+            '/usr/local/bin/pandoc',
+            '/usr/bin/pandoc',
+            '/opt/homebrew/bin/pandoc',
+            str(Path.home() / '.local/bin/pandoc'),
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                pandoc_paths.append(path)
+                
+        # 尝试从PATH中查找
+        try:
+            result = subprocess.run(['which', 'pandoc'], capture_output=True, text=True)
+            if result.returncode == 0:
+                pandoc_paths.append(result.stdout.strip())
+        except:
+            pass
+    
+    return pandoc_paths
+
+# 查找并添加pandoc二进制文件
+pandoc_binaries = find_pandoc_binary()
+if pandoc_binaries:
+    # 使用第一个找到的pandoc
+    pandoc_path = pandoc_binaries[0]
+    print(f"找到pandoc: {pandoc_path}")
+    
+    # 添加到binaries列表
+    binaries = [(pandoc_path, '.')]
+else:
+    print("警告: 未找到pandoc，文件转换功能将不可用")
+    binaries = []
+
 # 过滤存在的数据文件
 import os
 datas = [(src, dst) for src, dst in datas if os.path.exists(src)]
@@ -187,7 +264,7 @@ excludes = [
 a = Analysis(
     ['start_server_fixed.py'],
     pathex=[str(BASE_DIR)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

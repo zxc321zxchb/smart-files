@@ -63,6 +63,24 @@ class PyInstallerBuilder:
             return False
             
         return True
+    
+    def download_pandoc(self):
+        """下载pandoc"""
+        print("📦 准备pandoc...")
+        
+        try:
+            # 运行pandoc下载脚本
+            result = subprocess.run([sys.executable, 'download_pandoc.py'], 
+                                  cwd=self.base_dir, check=True, capture_output=True, text=True)
+            print("   ✅ pandoc准备完成")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"   ⚠️  pandoc下载失败: {e}")
+            print("   将尝试使用系统已安装的pandoc")
+            return True  # 不阻止构建，允许使用系统pandoc
+        except Exception as e:
+            print(f"   ⚠️  pandoc准备出错: {e}")
+            return True  # 不阻止构建
         
     def prepare_data_files(self):
         """准备数据文件"""
@@ -179,16 +197,20 @@ echo ""
             return False
         print()
         
-        # 步骤3: 准备数据文件
+        # 步骤3: 下载pandoc
+        self.download_pandoc()
+        print()
+        
+        # 步骤4: 准备数据文件
         self.prepare_data_files()
         print()
         
-        # 步骤4: 运行PyInstaller
+        # 步骤5: 运行PyInstaller
         if not self.run_pyinstaller():
             return False
         print()
         
-        # 步骤5: 构建后设置
+        # 步骤6: 构建后设置
         if not self.post_build_setup():
             return False
         print()
