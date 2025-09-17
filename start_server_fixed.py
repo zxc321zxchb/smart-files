@@ -28,7 +28,7 @@ def setup_django():
             sys.path.insert(0, current_dir)
         print(f"🔧 设置开发环境路径: {current_dir}")
     
-    # 初始化pandoc管理器
+    # 初始化pandoc管理器（异步）
     try:
         from pandoc_manager import PandocManager
         manager = PandocManager()
@@ -36,9 +36,13 @@ def setup_django():
         if pandoc_path:
             print(f"✅ pandoc已准备就绪: {pandoc_path}")
         else:
-            print("⚠️  pandoc不可用，文件转换功能将受限")
+            print("🔄 pandoc正在后台下载，文件转换功能稍后可用")
+            print("   📊 下载进度将实时显示在控制台")
+            print("   💡 下载完成后将自动启用pandoc功能")
+            print("   🌐 您可以通过API /api/files/pandoc_status/ 查看下载状态")
     except Exception as e:
         print(f"⚠️  pandoc管理器初始化失败: {e}")
+        print("   💡 文件转换功能将受限")
     
     # 设置Django设置模块
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'file_save_system.settings')

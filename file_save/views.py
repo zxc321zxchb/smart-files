@@ -183,8 +183,9 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     def get_pandoc_path(self):
         """获取pandoc可执行文件路径"""
         try:
-            from pandoc_manager import get_pandoc_path
-            return get_pandoc_path()
+            from pandoc_manager import PandocManager
+            manager = PandocManager()
+            return manager.check_pandoc_available()
         except ImportError:
             # 如果pandoc_manager不可用，使用简单检查
             import sys
@@ -241,11 +242,34 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             )
         
         # 检查pandoc是否可用
-        if not self.check_pandoc_available():
-            return Response(
-                {'error': 'Pandoc未安装，无法进行转换。请访问 https://pandoc.org/installing.html 下载并安装Pandoc，或使用包管理器安装：choco install pandoc'}, 
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
+        pandoc_path = self.get_pandoc_path()
+        if not pandoc_path:
+            # 检查是否正在下载
+            try:
+                from pandoc_manager import PandocManager
+                manager = PandocManager()
+                download_status = manager.get_download_status()
+                
+                if download_status['status'] == 'downloading':
+                    return Response(
+                        {'error': 'Pandoc正在后台下载中，请稍后再试。下载完成后文件转换功能将自动可用。'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                elif download_status['status'] == 'failed':
+                    return Response(
+                        {'error': f'Pandoc下载失败: {download_status.get("error", "未知错误")}。请检查网络连接或手动安装Pandoc。'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                else:
+                    return Response(
+                        {'error': 'Pandoc未安装，无法进行转换。系统正在尝试自动下载，请稍后再试。'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+            except ImportError:
+                return Response(
+                    {'error': 'Pandoc未安装，无法进行转换。请访问 https://pandoc.org/installing.html 下载并安装Pandoc，或使用包管理器安装：choco install pandoc'}, 
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
         
         try:
             # 解码文件内容
@@ -1073,4 +1097,31 @@ class FilePathViewSet(viewsets.ModelViewSet):
             return Response({
                 'success': False,
                 'message': f'获取索引统计失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @action(detail=False, methods=['get'])
+    def pandoc_status(self, request):
+        """获取pandoc下载状态"""
+        try:
+            from pandoc_manager import PandocManager
+            manager = PandocManager()
+            
+            # 获取pandoc可用性
+            pandoc_available = self.check_pandoc_available()
+            
+            # 获取下载状态
+            download_status = manager.get_download_status()
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'pandoc_available': pandoc_available,
+                    'download_status': download_status,
+                    'pandoc_path': self.get_pandoc_path() if pandoc_available else None
+                }
+            })
+        except Exception as e:
+            logger.error(f"获取pandoc状态失败: {e}")
+            return Response({
+                'success': False,
+                'message': f'获取pandoc状态失败: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
