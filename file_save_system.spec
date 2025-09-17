@@ -173,15 +173,15 @@ excludes = [
     'jupyter',
     'notebook',
     'IPython',
-    # 排除重型AI依赖
-    'sentence_transformers',
-    'torch',
-    'transformers',
-    'faiss',
-    'huggingface_hub',
-    'tokenizers',
-    'accelerate',
-    'safetensors'
+    # 排除重型AI依赖（已移除AI功能）
+    # 'sentence_transformers',
+    # 'torch', 
+    # 'transformers',
+    # 'faiss',
+    # 'huggingface_hub',
+    # 'tokenizers',
+    # 'accelerate',
+    # 'safetensors'
 ]
 
 a = Analysis(

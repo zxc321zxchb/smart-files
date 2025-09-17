@@ -108,9 +108,9 @@ def start_ai_download_background():
                 
                 # 通知相似度服务重新加载
                 try:
-                    from file_save.similarity_service_simple import similarity_service
-                    if hasattr(similarity_service, 'reload_ai_model'):
-                        similarity_service.reload_ai_model()
+                    from file_save.similarity_service_simple import similarity_service_simple
+                    if hasattr(similarity_service_simple, 'reload_ai_model'):
+                        similarity_service_simple.reload_ai_model()
                         print("   ✅ AI服务重新加载成功")
                 except Exception as e:
                     print(f"   ⚠️  AI服务重新加载失败: {e}")

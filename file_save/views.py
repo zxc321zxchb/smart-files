@@ -20,7 +20,7 @@ from .serializers import (
     FilePathListSerializer
 )
 # 启用简单相似度服务（不依赖numpy，适合PyInstaller打包）
-from .similarity_service_simple import similarity_service
+from .similarity_service_simple import similarity_service_simple
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +91,8 @@ class FileSaveViewSet(viewsets.ModelViewSet):
                             content = base64.b64decode(content_data).decode('utf-8')
                             
                             # 添加到相似度索引（如果服务可用）
-                            if similarity_service:
-                                similarity_service.add_document(
+                            if similarity_service_simple:
+                                similarity_service_simple.add_document(
                                     doc_id=str(file_id),
                                     content=content,
                                     metadata={
@@ -322,10 +322,10 @@ class FileSaveViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # 查找相似文件（如果服务可用）
-            # similarity_service 已经在模块级别导入
-            if similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if similarity_service_simple:
                 logger.info(f"开始查找相似文件，内容长度: {len(content)}, 阈值: {threshold}")
-                similar_docs = similarity_service.find_similar_documents(
+                similar_docs = similarity_service_simple.find_similar_documents(
                     query_content=content,
                     top_k=top_k,
                     threshold=threshold
@@ -371,22 +371,22 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     def similarity_debug(self, request):
         """相似度服务调试接口"""
         try:
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
             # 获取索引统计
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
-            stats = similarity_service.get_index_stats()
+            stats = similarity_service_simple.get_index_stats()
             
             # 获取数据库中的文件数量
             from .models import FileSave
@@ -415,15 +415,15 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     def rebuild_similarity_index(self, request):
         """重建相似度索引"""
         try:
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
             # 重建索引
-            success_count = similarity_service.rebuild_index_from_database()
+            success_count = similarity_service_simple.rebuild_index_from_database()
             
             return Response({
                 'success': True,
@@ -472,9 +472,9 @@ class FileSaveViewSet(viewsets.ModelViewSet):
             
             # 将新文件添加到相似度索引（如果服务可用）
             if result['success']:
-                # similarity_service 已经在模块级别导入
-                if similarity_service:
-                    similarity_service.add_document(
+                # similarity_service_simple 已经在模块级别导入
+                if similarity_service_simple:
+                    similarity_service_simple.add_document(
                     doc_id=str(result['file_id']),
                     content=content,
                     metadata={
@@ -595,14 +595,14 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     def rebuild_similarity_index(self, request):
         """重建相似度索引"""
         try:
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
-            count = similarity_service.rebuild_index_from_database()
+            count = similarity_service_simple.rebuild_index_from_database()
             
             # 更新所有文档的索引标记
             FileSave.objects.filter(
@@ -624,14 +624,14 @@ class FileSaveViewSet(viewsets.ModelViewSet):
     def similarity_index_stats(self, request):
         """获取相似度索引统计信息"""
         try:
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
-            stats = similarity_service.get_index_stats()
+            stats = similarity_service_simple.get_index_stats()
             return Response({
                 'success': True,
                 'data': stats
@@ -849,9 +849,9 @@ class FilePathViewSet(viewsets.ModelViewSet):
             
             # 将新文件添加到相似度索引（如果服务可用）
             if result['success']:
-                # similarity_service 已经在模块级别导入
-                if similarity_service:
-                    similarity_service.add_document(
+                # similarity_service_simple 已经在模块级别导入
+                if similarity_service_simple:
+                    similarity_service_simple.add_document(
                     doc_id=str(result['file_id']),
                     content=content,
                     metadata={
@@ -972,14 +972,14 @@ class FilePathViewSet(viewsets.ModelViewSet):
     def rebuild_similarity_index(self, request):
         """重建相似度索引"""
         try:
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
-            count = similarity_service.rebuild_index_from_database()
+            count = similarity_service_simple.rebuild_index_from_database()
             
             # 更新所有文档的索引标记
             FileSave.objects.filter(
@@ -1001,14 +1001,14 @@ class FilePathViewSet(viewsets.ModelViewSet):
     def similarity_index_stats(self, request):
         """获取相似度索引统计信息"""
         try:
-            # similarity_service 已经在模块级别导入
-            if not similarity_service:
+            # similarity_service_simple 已经在模块级别导入
+            if not similarity_service_simple:
                 return Response({
                     'success': False,
                     'message': '相似度服务不可用'
                 })
             
-            stats = similarity_service.get_index_stats()
+            stats = similarity_service_simple.get_index_stats()
             return Response({
                 'success': True,
                 'data': stats

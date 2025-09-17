@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-简单相似度服务 - 不依赖numpy，适合PyInstaller打包
+清理版相似度服务
+专注于基础算法，移除所有AI依赖，为后期升级预留接口
 """
 
 import os
@@ -10,87 +11,318 @@ import json
 import hashlib
 import logging
 import re
-from typing import List, Dict, Optional, Tuple
+import math
+from typing import List, Dict, Optional, Tuple, Any
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
-from collections import Counter
+from collections import Counter, defaultdict
 
 logger = logging.getLogger(__name__)
 
 class SimilarityServiceSimple:
-    """简单相似度检测服务 - 支持动态加载AI模型"""
+    """清理版相似度检测服务 - 专注基础算法"""
     
     def __init__(self):
         self.document_metadata = {}
         self.index_path = os.path.join(settings.BASE_DIR, 'data', 'similarity_index')
-        self.ai_available = False
-        self.model_loaded = False
-        self.ai_model = None
-        self.ai_index = None
         
-        # 尝试加载AI模型
-        self._try_load_ai_model()
+        # 为后期AI升级预留的接口
+        self.ai_interface = None
+        self.ai_available = False
         
         # 加载现有索引
         self.load_or_create_index()
     
-    def _try_load_ai_model(self):
-        """尝试加载AI模型"""
+    def _extract_text_features(self, content: str) -> Dict[str, Any]:
+        """提取文本特征（增强版）"""
         try:
-            # 在打包环境中跳过AI模型加载
-            if getattr(sys, 'frozen', False):
-                logger.info("打包环境，跳过AI模型加载，使用基础相似度算法")
-                return
-                
-            # 检查模型文件是否存在
-            from ai_models import get_model_manager
-            manager = get_model_manager()
-            model_status = manager.check_model_files()
+            # 基础文本清理
+            cleaned_content = self._clean_text(content)
             
-            if model_status.get('sentence_transformer', False):
-                # 尝试导入AI依赖
-                from sentence_transformers import SentenceTransformer
-                import faiss
+            # 分词（简单版本）
+            words = self._simple_tokenize(cleaned_content)
+            
+            # 提取各种特征
+            features = {
+                # 基础统计特征
+                'word_count': len(words),
+                'char_count': len(content),
+                'unique_words': len(set(words)),
+                'avg_word_length': sum(len(w) for w in words) / len(words) if words else 0,
                 
-                # 加载模型
-                model_path = os.path.join(settings.BASE_DIR, 'data', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
-                self.ai_model = SentenceTransformer(model_path)
-                self.ai_available = True
-                self.model_loaded = True
-                logger.info("AI模型加载成功")
-            else:
-                logger.info("AI模型文件不存在，使用基础相似度算法")
+                # 词汇特征
+                'common_words': dict(Counter(words).most_common(20)),
+                'word_frequency': self._calculate_word_frequency(words),
+                'vocabulary_richness': len(set(words)) / len(words) if words else 0,
                 
-        except ImportError as e:
-            logger.info(f"AI依赖未安装: {e}")
+                # 结构特征
+                'sentence_count': len(re.split(r'[。！？]', content)),
+                'paragraph_count': len([p for p in content.split('\n') if p.strip()]),
+                'has_numbers': bool(re.search(r'\d', content)),
+                'has_urls': bool(re.search(r'http[s]?://', content)),
+                'has_emails': bool(re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', content)),
+                'has_phone': bool(re.search(r'1[3-9]\d{9}', content)),
+                
+                # 语言特征
+                'chinese_ratio': self._get_chinese_ratio(content),
+                'english_ratio': self._get_english_ratio(content),
+                'digit_ratio': self._get_digit_ratio(content),
+                
+                # 语义特征（简化版）
+                'semantic_keywords': self._extract_semantic_keywords(words),
+                'topic_words': self._extract_topic_words(words),
+                
+                # 时间特征
+                'has_time': bool(re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}', content)),
+                'has_date': bool(re.search(r'(今天|昨天|明天|今年|去年|明年)', content)),
+                
+                # 情感特征（简化版）
+                'sentiment_score': self._calculate_sentiment_score(words),
+            }
+            
+            return features
+            
         except Exception as e:
-            logger.error(f"加载AI模型失败: {e}")
+            logger.error(f"提取文本特征失败: {e}")
+            return {}
     
-    def reload_ai_model(self):
-        """重新加载AI模型（用于下载完成后）"""
-        logger.info("重新加载AI模型...")
-        self._try_load_ai_model()
+    def _clean_text(self, content: str) -> str:
+        """清理文本"""
+        # 移除HTML标签
+        content = re.sub(r'<[^>]+>', '', content)
+        # 移除多余空白
+        content = re.sub(r'\s+', ' ', content)
+        # 移除特殊字符但保留中文、英文、数字
+        content = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9\s]', ' ', content)
+        return content.strip()
+    
+    def _simple_tokenize(self, content: str) -> List[str]:
+        """简单分词"""
+        # 按空格和标点符号分词
+        words = re.findall(r'\b\w+\b', content)
+        # 过滤单字符词
+        words = [w for w in words if len(w) > 1]
+        return words
+    
+    def _calculate_word_frequency(self, words: List[str]) -> Dict[str, float]:
+        """计算词频"""
+        if not words:
+            return {}
+        word_count = Counter(words)
+        total_words = len(words)
+        return {word: count / total_words for word, count in word_count.items()}
+    
+    def _extract_semantic_keywords(self, words: List[str]) -> List[Tuple[str, float]]:
+        """提取语义关键词（基于词频和长度）"""
+        if not words:
+            return []
         
-        if self.ai_available:
-            # 重新创建AI索引
-            self._create_ai_index()
-            logger.info("AI模型重新加载完成")
-        else:
-            logger.warning("AI模型重新加载失败，继续使用基础算法")
+        # 计算词的重要性分数
+        word_scores = {}
+        for word in words:
+            if len(word) >= 2:  # 至少2个字符
+                # 基于词频和长度的综合评分
+                freq = words.count(word)
+                length_score = len(word) / 10  # 长度分数
+                freq_score = freq / len(words) * 100  # 频率分数
+                word_scores[word] = length_score + freq_score
+        
+        # 返回得分最高的前10个词
+        return sorted(word_scores.items(), key=lambda x: x[1], reverse=True)[:10]
     
-    def _create_ai_index(self):
-        """创建AI索引"""
-        if not self.ai_available or not self.ai_model:
-            return
+    def _extract_topic_words(self, words: List[str]) -> List[Tuple[str, float]]:
+        """提取主题词（基于TF简化版）"""
+        if not words:
+            return []
+        
+        # 简化的TF计算
+        word_count = Counter(words)
+        total_words = len(words)
+        
+        # 计算TF分数
+        tf_scores = {}
+        for word, count in word_count.items():
+            if len(word) >= 2:
+                tf_scores[word] = count / total_words
+        
+        # 返回TF分数最高的词
+        return sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:15]
+    
+    def _get_chinese_ratio(self, content: str) -> float:
+        """获取中文字符比例"""
+        if not content:
+            return 0.0
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fa5]', content))
+        return chinese_chars / len(content)
+    
+    def _get_english_ratio(self, content: str) -> float:
+        """获取英文字符比例"""
+        if not content:
+            return 0.0
+        english_chars = len(re.findall(r'[a-zA-Z]', content))
+        return english_chars / len(content)
+    
+    def _get_digit_ratio(self, content: str) -> float:
+        """获取数字字符比例"""
+        if not content:
+            return 0.0
+        digit_chars = len(re.findall(r'\d', content))
+        return digit_chars / len(content)
+    
+    def _calculate_sentiment_score(self, words: List[str]) -> float:
+        """计算情感分数（简化版）"""
+        if not words:
+            return 0.0
+        
+        # 简单的情感词典
+        positive_words = {'好', '棒', '优秀', '完美', '喜欢', '爱', '开心', '高兴', '满意', '成功'}
+        negative_words = {'坏', '差', '糟糕', '讨厌', '恨', '难过', '失望', '失败', '问题', '错误'}
+        
+        positive_count = sum(1 for word in words if word in positive_words)
+        negative_count = sum(1 for word in words if word in negative_words)
+        
+        if positive_count + negative_count == 0:
+            return 0.0
+        
+        return (positive_count - negative_count) / (positive_count + negative_count)
+    
+    def _calculate_enhanced_similarity(self, features1: Dict, features2: Dict) -> float:
+        """计算增强的相似度"""
+        try:
+            # 定义特征权重
+            weights = {
+                'word_count': 0.08,
+                'char_count': 0.05,
+                'unique_words': 0.08,
+                'avg_word_length': 0.05,
+                'common_words': 0.30,
+                'word_frequency': 0.20,
+                'vocabulary_richness': 0.08,
+                'sentence_count': 0.03,
+                'paragraph_count': 0.03,
+                'has_numbers': 0.02,
+                'has_urls': 0.02,
+                'has_emails': 0.02,
+                'has_phone': 0.02,
+                'chinese_ratio': 0.05,
+                'english_ratio': 0.05,
+                'digit_ratio': 0.03,
+                'sentiment_score': 0.08,
+                'has_time': 0.02,
+                'has_date': 0.02,
+                'semantic_keywords': 0.15,
+                'topic_words': 0.10,
+            }
+            
+            total_similarity = 0.0
+            total_weight = 0.0
+            
+            for feature, weight in weights.items():
+                if feature in features1 and feature in features2:
+                    similarity = self._calculate_feature_similarity(
+                        features1[feature], features2[feature], feature
+                    )
+                    total_similarity += similarity * weight
+                    total_weight += weight
+            
+            return total_similarity / total_weight if total_weight > 0 else 0.0
+            
+        except Exception as e:
+            logger.error(f"计算增强相似度失败: {e}")
+            return 0.0
+    
+    def _calculate_feature_similarity(self, val1: Any, val2: Any, feature: str) -> float:
+        """计算单个特征的相似度"""
+        try:
+            if feature in ['common_words', 'word_frequency']:
+                # 字典类型特征
+                return self._calculate_dict_similarity(val1, val2)
+            elif feature in ['semantic_keywords', 'topic_words']:
+                # 列表类型特征（转换为字典）
+                dict1 = dict(val1) if isinstance(val1, list) else val1
+                dict2 = dict(val2) if isinstance(val2, list) else val2
+                return self._calculate_dict_similarity(dict1, dict2)
+            elif isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                # 数值特征相似度
+                return self._calculate_numeric_similarity(val1, val2)
+            else:
+                # 布尔特征相似度
+                return 1.0 if val1 == val2 else 0.0
+                
+        except Exception as e:
+            logger.warning(f"计算特征相似度失败 {feature}: {e}")
+            return 0.0
+    
+    def _calculate_dict_similarity(self, dict1: Dict, dict2: Dict) -> float:
+        """计算字典相似度（Jaccard相似度）"""
+        if not dict1 and not dict2:
+            return 1.0
+        if not dict1 or not dict2:
+            return 0.0
+        
+        keys1 = set(dict1.keys())
+        keys2 = set(dict2.keys())
+        
+        intersection = keys1.intersection(keys2)
+        union = keys1.union(keys2)
+        
+        if not union:
+            return 0.0
+        
+        # 基础Jaccard相似度
+        jaccard = len(intersection) / len(union)
+        
+        # 考虑值的相似度
+        value_similarity = 0.0
+        for key in intersection:
+            val1 = dict1[key]
+            val2 = dict2[key]
+            if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                if val1 == 0 and val2 == 0:
+                    value_similarity += 1.0
+                else:
+                    max_val = max(abs(val1), abs(val2))
+                    value_similarity += 1.0 - abs(val1 - val2) / max_val if max_val > 0 else 0
+        else:
+                value_similarity += 1.0 if val1 == val2 else 0.0
+        
+        if intersection:
+            value_similarity /= len(intersection)
+        
+        # 综合相似度
+        return (jaccard + value_similarity) / 2
+    
+    def _calculate_numeric_similarity(self, val1: float, val2: float) -> float:
+        """计算数值相似度"""
+        if val1 == val2:
+            return 1.0
+        
+        # 使用相对误差计算相似度
+        max_val = max(abs(val1), abs(val2))
+        if max_val == 0:
+            return 1.0
+        
+        error = abs(val1 - val2) / max_val
+        return max(0.0, 1.0 - error)
+    
+    # 为后期AI升级预留的接口
+    def set_ai_interface(self, ai_interface):
+        """设置AI接口（为后期升级预留）"""
+        self.ai_interface = ai_interface
+        self.ai_available = ai_interface is not None
+        logger.info(f"AI接口已设置，可用性: {self.ai_available}")
+    
+    def _try_ai_similarity(self, query_content: str, top_k: int = 5, threshold: float = 0.3) -> List[Dict]:
+        """尝试使用AI进行相似度检测（为后期升级预留）"""
+        if not self.ai_available or not self.ai_interface:
+            return []
         
         try:
-            import faiss
-            self.ai_index = faiss.IndexFlatIP(384)  # all-MiniLM-L6-v2的向量维度
-            logger.info("AI索引创建完成")
+            return self.ai_interface.find_similar_documents(query_content, top_k, threshold)
         except Exception as e:
-            logger.error(f"创建AI索引失败: {e}")
-            self.ai_index = None
+            logger.warning(f"AI相似度检测失败: {e}")
+            return []
     
     def load_or_create_index(self):
         """加载或创建索引"""
@@ -112,96 +344,33 @@ class SimilarityServiceSimple:
     def add_document(self, doc_id: str, content: str, metadata: Dict = None) -> bool:
         """添加文档到索引"""
         try:
-            if self.ai_available and self.ai_model and self.ai_index is not None:
-                # 使用AI模型
-                return self._add_document_with_ai(doc_id, content, metadata)
-            else:
-                # 使用基础算法
-                return self._add_document_basic(doc_id, content, metadata)
-        except Exception as e:
-            logger.error(f"添加文档失败: {e}")
-            return False
-    
-    def _add_document_basic(self, doc_id: str, content: str, metadata: Dict = None) -> bool:
-        """使用基础算法添加文档"""
-        try:
-            # 使用简单的文本特征作为"向量"
+            # 提取增强特征
             features = self._extract_text_features(content)
+            if not features:
+                logger.warning(f"无法提取文档 {doc_id} 的特征")
+                return False
             
-            # 保存到元数据
-            doc_index = str(len(self.document_metadata))
-            self.document_metadata[doc_index] = {
-                'doc_id': doc_id,
-                'content_preview': content[:200],
+            # 保存文档元数据
+            self.document_metadata[doc_id] = {
+                'content_preview': content[:500],
                 'features': features,
-                'metadata': metadata or {}
+                'metadata': metadata or {},
+                'created_at': timezone.now().isoformat()
             }
             
             # 保存到Django缓存
             cache_key = f"doc_features:{doc_id}"
             cache.set(cache_key, features, timeout=3600)
             
-            logger.info(f"文档 {doc_id} 已添加到基础相似度索引")
+            # 保存到磁盘
+            self.save_index()
+            
+            logger.info(f"文档 {doc_id} 已添加到清理版相似度索引")
             return True
+            
         except Exception as e:
-            logger.error(f"基础添加文档失败: {e}")
+            logger.error(f"添加文档失败: {e}")
             return False
-    
-    def _add_document_with_ai(self, doc_id: str, content: str, metadata: Dict = None) -> bool:
-        """使用AI模型添加文档"""
-        try:
-            # 生成向量
-            vector = self.ai_model.encode([content])[0]
-            vector = vector.astype('float32')
-            
-            # 归一化向量（用于余弦相似度）
-            import faiss
-            faiss.normalize_L2(vector.reshape(1, -1))
-            
-            # 添加到索引
-            self.ai_index.add(vector.reshape(1, -1))
-            
-            # 保存元数据
-            doc_index = str(self.ai_index.ntotal - 1)
-            self.document_metadata[doc_index] = {
-                'doc_id': doc_id,
-                'content_preview': content[:500],
-                'metadata': metadata or {}
-            }
-            
-            # 保存到Django缓存
-            cache_key = f"doc_vector:{doc_id}"
-            cache.set(cache_key, vector.tobytes(), timeout=3600)
-            
-            # 定期保存索引
-            if self.ai_index.ntotal % 50 == 0:
-                self.save_index()
-                
-            logger.info(f"文档 {doc_id} 已添加到AI相似度索引")
-            return True
-        except Exception as e:
-            logger.error(f"AI添加文档失败: {e}")
-            return False
-    
-    def _extract_text_features(self, content: str) -> Dict:
-        """提取文本特征（基础算法）"""
-        # 清理文本
-        text = re.sub(r'[^\w\s]', ' ', content.lower())
-        words = text.split()
-        
-        # 计算基础特征
-        features = {
-            'word_count': len(words),
-            'char_count': len(content),
-            'unique_words': len(set(words)),
-            'avg_word_length': sum(len(w) for w in words) / len(words) if words else 0,
-            'common_words': dict(Counter(words).most_common(10)),
-            'has_numbers': bool(re.search(r'\d', content)),
-            'has_urls': bool(re.search(r'http[s]?://', content)),
-            'has_emails': bool(re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', content))
-        }
-        
-        return features
     
     def find_similar_documents(self, query_content: str, top_k: int = 5, threshold: float = 0.3) -> List[Dict]:
         """查找相似文档"""
@@ -214,57 +383,22 @@ class SimilarityServiceSimple:
                 logger.info("使用缓存的相似度检测结果")
                 return cached_result
             
-            if self.ai_available and self.ai_model and self.ai_index is not None:
-                # 使用AI模型
-                return self._find_similar_with_ai(query_content, top_k, threshold)
-            else:
-                # 使用基础算法
-                return self._find_similar_basic(query_content, top_k, threshold)
+            # 优先尝试AI检测（如果可用）
+            if self.ai_available:
+                ai_results = self._try_ai_similarity(query_content, top_k, threshold)
+                if ai_results:
+                    logger.info("使用AI相似度检测")
+                    return ai_results
+            
+            # 使用增强基础算法
+            return self._find_similar_enhanced(query_content, top_k, threshold)
                 
         except Exception as e:
             logger.error(f"搜索相似文档失败: {e}")
             return []
     
-    def _find_similar_with_ai(self, query_content: str, top_k: int, threshold: float) -> List[Dict]:
-        """使用AI模型查找相似文档"""
-        try:
-            if self.ai_index.ntotal == 0:
-                logger.warning("AI索引为空，无法进行相似度检测")
-                return []
-            
-            # 生成查询向量
-            query_vector = self.ai_model.encode([query_content])[0]
-            query_vector = query_vector.astype('float32')
-            import faiss
-            faiss.normalize_L2(query_vector.reshape(1, -1))
-            
-            # 搜索相似文档
-            similarities, indices = self.ai_index.search(query_vector.reshape(1, -1), top_k)
-            
-            results = []
-            for i, (similarity, idx) in enumerate(zip(similarities[0], indices[0])):
-                if similarity >= threshold:
-                    doc_metadata = self.document_metadata.get(str(idx), {})
-                    results.append({
-                        'doc_id': doc_metadata.get('doc_id', ''),
-                        'similarity_score': float(similarity),
-                        'content_preview': doc_metadata.get('content_preview', ''),
-                        'metadata': doc_metadata.get('metadata', {})
-                    })
-            
-            # 缓存结果
-            cache_key = f"similarity:{hashlib.md5(query_content.encode()).hexdigest()}"
-            cache.set(cache_key, results, timeout=1800)
-            
-            logger.info(f"找到 {len(results)} 个相似文档（AI算法）")
-            return results
-            
-        except Exception as e:
-            logger.error(f"AI搜索相似文档失败: {e}")
-            return []
-    
-    def _find_similar_basic(self, query_content: str, top_k: int, threshold: float) -> List[Dict]:
-        """使用基础算法查找相似文档"""
+    def _find_similar_enhanced(self, query_content: str, top_k: int, threshold: float) -> List[Dict]:
+        """使用增强算法查找相似文档"""
         try:
             if not self.document_metadata:
                 logger.warning("没有文档数据，无法进行相似度检测")
@@ -272,20 +406,23 @@ class SimilarityServiceSimple:
             
             # 提取查询特征
             query_features = self._extract_text_features(query_content)
+            if not query_features:
+                logger.warning("无法提取查询特征")
+                return []
             
             # 计算相似度
             similarities = []
-            for doc_index, doc_data in self.document_metadata.items():
+            for doc_id, doc_data in self.document_metadata.items():
                 doc_features = doc_data.get('features', {})
-                similarity = self._calculate_basic_similarity(query_features, doc_features)
+                similarity = self._calculate_enhanced_similarity(query_features, doc_features)
                 
                 if similarity >= threshold:
                     similarities.append({
-                        'doc_id': doc_data.get('doc_id', ''),
+                        'doc_id': doc_id,
                         'similarity_score': similarity,
                         'content_preview': doc_data.get('content_preview', ''),
                         'metadata': doc_data.get('metadata', {}),
-                        'doc_index': doc_index
+                        'created_at': doc_data.get('created_at', '')
                     })
             
             # 按相似度排序
@@ -296,130 +433,50 @@ class SimilarityServiceSimple:
             cache_key = f"similarity:{hashlib.md5(query_content.encode()).hexdigest()}"
             cache.set(cache_key, results, timeout=1800)
             
-            logger.info(f"找到 {len(results)} 个相似文档（基础算法）")
+            logger.info(f"找到 {len(results)} 个相似文档（清理版基础算法）")
             return results
             
         except Exception as e:
-            logger.error(f"基础搜索相似文档失败: {e}")
+            logger.error(f"增强搜索相似文档失败: {e}")
             return []
-    
-    def _calculate_basic_similarity(self, features1: Dict, features2: Dict) -> float:
-        """计算基础相似度"""
-        try:
-            # 基于多个特征的加权相似度
-            weights = {
-                'word_count': 0.2,
-                'char_count': 0.1,
-                'unique_words': 0.2,
-                'avg_word_length': 0.1,
-                'common_words': 0.3,
-                'has_numbers': 0.05,
-                'has_urls': 0.05
-            }
-            
-            total_similarity = 0.0
-            total_weight = 0.0
-            
-            for feature, weight in weights.items():
-                if feature in features1 and feature in features2:
-                    if feature == 'common_words':
-                        # 计算词汇重叠度
-                        words1 = set(features1[feature].keys())
-                        words2 = set(features2[feature].keys())
-                        if words1 or words2:
-                            overlap = len(words1.intersection(words2))
-                            union = len(words1.union(words2))
-                            similarity = overlap / union if union > 0 else 0
-                        else:
-                            similarity = 0
-                    else:
-                        # 数值特征相似度
-                        val1 = features1[feature]
-                        val2 = features2[feature]
-                        if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
-                            if val1 == 0 and val2 == 0:
-                                similarity = 1.0
-                            else:
-                                max_val = max(abs(val1), abs(val2))
-                                similarity = 1.0 - abs(val1 - val2) / max_val if max_val > 0 else 0
-                        else:
-                            similarity = 1.0 if val1 == val2 else 0.0
-                    
-                    total_similarity += similarity * weight
-                    total_weight += weight
-            
-            return total_similarity / total_weight if total_weight > 0 else 0.0
-            
-        except Exception as e:
-            logger.error(f"计算基础相似度失败: {e}")
-            return 0.0
     
     def save_index(self):
         """保存索引到磁盘"""
         try:
-            # 保存基础索引
             metadata_file = os.path.join(self.index_path, 'metadata.json')
             with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(self.document_metadata, f, ensure_ascii=False, indent=2)
             
-            logger.info("基础索引已保存到磁盘")
+            logger.info("清理版相似度索引已保存到磁盘")
         except Exception as e:
             logger.error(f"保存索引失败: {e}")
-    
-    def rebuild_index(self) -> int:
-        """重建索引"""
-        from .models import FileSave
-        
-        logger.info("开始重建相似度索引...")
-        
-        # 清空现有索引
-        self.document_metadata = {}
-        
-        # 从数据库加载所有文档
-        documents = FileSave.objects.filter(
-            content_type__in=['text/markdown', 'text/plain']
-        ).values('id', 'filename', 'content_data', 'file_path', 'created_at')
-        
-        success_count = 0
-        for doc in documents:
-            try:
-                import base64
-                content = base64.b64decode(doc['content_data']).decode('utf-8')
-                self.add_document(
-                    doc_id=str(doc['id']),
-                    content=content,
-                    metadata={
-                        'filename': doc['filename'],
-                        'file_path': doc['file_path'],
-                        'created_at': doc['created_at'].isoformat() if doc['created_at'] else ''
-                    }
-                )
-                success_count += 1
-            except Exception as e:
-                logger.error(f"处理文档 {doc['id']} 失败: {e}")
-        
-        self.save_index()
-        logger.info(f"索引重建完成，成功处理 {success_count} 个文档")
-        return success_count
     
     def get_index_stats(self) -> Dict:
         """获取索引统计信息"""
         return {
             'total_documents': len(self.document_metadata),
+            'algorithm_type': 'Clean Basic',
             'ai_available': self.ai_available,
-            'model_loaded': self.model_loaded,
-            'index_type': 'Basic',
+            'features_extracted': len(self.document_metadata) > 0,
             'last_updated': timezone.now().isoformat()
         }
     
-    def get_ai_status(self) -> Dict:
-        """获取AI状态信息"""
+    def get_algorithm_info(self) -> Dict:
+        """获取算法信息"""
         return {
-            'ai_dependencies_available': False,
-            'model_files_status': {'sentence_transformer': False, 'faiss_index': False},
-            'all_ready': False,
-            'models_dir': str(os.path.join(settings.BASE_DIR, 'data', 'models'))
+            'current_algorithm': 'Clean Basic Similarity',
+            'features': [
+                'Text Statistics',
+                'Word Frequency Analysis',
+                'Semantic Keywords',
+                'Topic Words',
+                'Language Detection',
+                'Structure Analysis',
+                'Sentiment Analysis'
+            ],
+            'ai_upgrade_ready': True,
+            'ai_interface_available': self.ai_available
         }
 
 # 全局实例
-similarity_service = SimilarityServiceSimple()
+similarity_service_simple = SimilarityServiceSimple()

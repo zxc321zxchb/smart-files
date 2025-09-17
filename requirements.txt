@@ -12,14 +12,8 @@ pytz==2025.2
 uritemplate==4.2.0
 pyinstaller==6.3.0
 
-# 智能保存功能依赖
-# 升级sentence-transformers以兼容huggingface-hub 0.34.4
-sentence-transformers==2.7.0
-faiss-cpu==1.12.0
-numpy>=1.26.0
-torch>=2.1.0
-# 降级transformers以兼容sentence-transformers 2.7.0
-transformers==4.44.0
+# 智能保存功能依赖（基础算法版本）
+# 移除AI相关依赖，专注基础文本分析
 
 # S3下载依赖
-boto3>=1.34.0
+# boto3>=1.34.0

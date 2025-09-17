@@ -191,10 +191,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
+
+if getattr(sys, 'frozen', False):
+    # 打包环境 - 使用可执行文件同目录
+    exe_dir = os.path.dirname(sys.executable)
+    STATIC_ROOT = os.path.join(exe_dir, 'staticfiles')
+    STATICFILES_DIRS = [
+        os.path.join(exe_dir, 'static'),
+    ] if os.path.exists(os.path.join(exe_dir, 'static')) else []
+else:
+    # 开发环境
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    STATICFILES_DIRS = [
+        BASE_DIR / 'static',
+    ]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
